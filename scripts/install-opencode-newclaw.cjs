@@ -5,18 +5,18 @@
  * @input  ~/.config/opencode/opencode.json
  * @output Updated opencode.json with newclaw provider config
  * @pos    postinstall script - auto-configures OpenCode for NewClaw
+ *
+ * NOTE: This script uses CommonJS for maximum Node.js compatibility.
  */
 
-import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
-import os from "node:os";
+const { existsSync } = require("node:fs");
+const { mkdir, readFile, writeFile } = require("node:fs/promises");
+const path = require("node:path");
+const os = require("node:os");
 
 const PACKAGE_NAME = "opencode-newclaw-auth";
 const PROVIDER_ID = "newclaw";
 const PROVIDER_NAME = "NewClaw";
-const PLUGIN_ENTRY = new URL("../index.ts", import.meta.url).href;
-const PROVIDER_NPM = new URL("../provider.ts", import.meta.url).href;
 const DEFAULT_API = "https://newclaw.ai/v1";
 const DEFAULT_ENV = ["NEWCLAW_API_KEY"];
 
@@ -42,32 +42,38 @@ const configRoot = process.env.XDG_CONFIG_HOME || path.join(home, ".config");
 const configDir = path.join(configRoot, "opencode");
 const configPath = path.join(configDir, "opencode.json");
 
+// Resolve plugin entry and provider npm paths relative to this script
+const PLUGIN_ENTRY = path.resolve(__dirname, "..", "index.ts");
+const PROVIDER_NPM = path.resolve(__dirname, "..", "provider.ts");
+
 async function readJson(filePath) {
   try {
     const text = await readFile(filePath, "utf-8");
     return JSON.parse(text);
   } catch {
-    return;
+    return undefined;
   }
 }
 
-function toModelMap(ids, existing = {}) {
-  return ids.reduce((acc, id) => {
+function toModelMap(ids, existing) {
+  existing = existing || {};
+  return ids.reduce(function (acc, id) {
     const existingConfig = Object.prototype.hasOwnProperty.call(existing, id) ? existing[id] : {};
-    const defaultConfig = MODEL_CONFIGS[id] ?? {};
-    acc[id] = { ...defaultConfig, ...(typeof existingConfig === "object" ? existingConfig : {}) };
+    const defaultConfig = MODEL_CONFIGS[id] || {};
+    acc[id] = Object.assign({}, defaultConfig, typeof existingConfig === "object" ? existingConfig : {});
     return acc;
   }, {});
 }
 
 function ensurePluginEntry(list) {
   if (!Array.isArray(list)) return [PLUGIN_ENTRY];
-  const hasPlugin = list.some(
-    (entry) =>
+  const hasPlugin = list.some(function (entry) {
+    return (
       typeof entry === "string" &&
-      (entry === PLUGIN_ENTRY || entry === PACKAGE_NAME || entry.startsWith(`${PACKAGE_NAME}@`)),
-  );
-  return hasPlugin ? list : [...list, PLUGIN_ENTRY];
+      (entry === PLUGIN_ENTRY || entry === PACKAGE_NAME || entry.startsWith(PACKAGE_NAME + "@"))
+    );
+  });
+  return hasPlugin ? list : list.concat([PLUGIN_ENTRY]);
 }
 
 function applyProviderConfig(config) {
@@ -79,7 +85,7 @@ function applyProviderConfig(config) {
   const existing = providerMap[PROVIDER_ID] && typeof providerMap[PROVIDER_ID] === "object" ? providerMap[PROVIDER_ID] : {};
   const existingModels = existing.models && typeof existing.models === "object" ? existing.models : {};
 
-  const next = { ...existing };
+  const next = Object.assign({}, existing);
 
   if (!next.name) {
     next.name = PROVIDER_NAME;
@@ -94,7 +100,7 @@ function applyProviderConfig(config) {
   if (
     !next.npm ||
     (typeof next.npm === "string" &&
-      (next.npm === PACKAGE_NAME || next.npm.startsWith(`${PACKAGE_NAME}@`)))
+      (next.npm === PACKAGE_NAME || next.npm.startsWith(PACKAGE_NAME + "@")))
   ) {
     next.npm = PROVIDER_NPM;
     changed = true;
@@ -105,11 +111,11 @@ function applyProviderConfig(config) {
     changed = true;
   }
 
-  const hasMissingModels = ALLOWED_MODEL_IDS.some(
-    (id) => !Object.prototype.hasOwnProperty.call(existingModels, id),
-  );
+  const hasMissingModels = ALLOWED_MODEL_IDS.some(function (id) {
+    return !Object.prototype.hasOwnProperty.call(existingModels, id);
+  });
   if (!next.models || hasMissingModels) {
-    next.models = { ...existingModels, ...toModelMap(ALLOWED_MODEL_IDS, existingModels) };
+    next.models = Object.assign({}, existingModels, toModelMap(ALLOWED_MODEL_IDS, existingModels));
     changed = true;
   }
 
@@ -125,7 +131,6 @@ function applyProviderConfig(config) {
     changed = true;
   }
 
-  // Set default model if not configured
   if (!config.model) {
     config.model = DEFAULT_MODEL;
     changed = true;
@@ -135,18 +140,18 @@ function applyProviderConfig(config) {
 }
 
 async function main() {
-  const config = (await readJson(configPath)) ?? {};
+  const config = (await readJson(configPath)) || {};
 
   const changed = applyProviderConfig(config);
   if (!changed) return;
 
   await mkdir(configDir, { recursive: true });
-  await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf-8");
-  console.log(`[${PACKAGE_NAME}] Updated OpenCode config at ${configPath}`);
+  await writeFile(configPath, JSON.stringify(config, null, 2) + "\n", "utf-8");
+  console.log("[" + PACKAGE_NAME + "] Updated OpenCode config at " + configPath);
 }
 
-main().catch((error) => {
+main().catch(function (error) {
   console.error(
-    `[${PACKAGE_NAME}] Failed to update opencode config: ${error instanceof Error ? error.message : error}`,
+    "[" + PACKAGE_NAME + "] Failed to update opencode config: " + (error instanceof Error ? error.message : error)
   );
 });

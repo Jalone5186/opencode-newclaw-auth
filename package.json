@@ -25,7 +25,7 @@
     "typecheck": "bunx tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "postinstall": "bun ./scripts/install-opencode-newclaw.js"
+    "postinstall": "node ./scripts/install-opencode-newclaw.cjs"
   },
   "keywords": [
     "opencode",
