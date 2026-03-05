@@ -190,6 +190,10 @@ export NEWCLAW_CODEX_API_KEY="sk-codex-key"
 export NEWCLAW_GEMINI_API_KEY="sk-gemini-key"
 ```
 
+**Q: 如何添加 Grok、千问等其他模型？**
+
+本插件支持自定义扩展，只需修改模型注册表即可添加新模型。详见 [CUSTOM-MODELS.md](./CUSTOM-MODELS.md)。
+
 ## 使用
 
 ```bash
