@@ -43,9 +43,9 @@ const configDir = path.join(configRoot, "opencode");
 const configJsoncPath = path.join(configDir, "opencode.jsonc");
 const configPath = path.join(configDir, "opencode.json");
 
-// Plugin entry uses package name (portable across machines)
-const PLUGIN_ENTRY = PACKAGE_NAME;
-const PROVIDER_NPM = require("node:url").pathToFileURL(path.resolve(__dirname, "..", "provider.ts")).href;
+// Plugin entry and provider npm both use package name (portable across machines)
+var PLUGIN_ENTRY = PACKAGE_NAME;
+var PROVIDER_NPM = PACKAGE_NAME;
 
 function stripJsoncComments(text) {
   // Remove single-line comments and multi-line comments
@@ -149,12 +149,30 @@ function applyProviderConfig(config) {
 }
 
 async function checkOmoInstalled() {
+  // npm sets INIT_CWD to the directory where `npm install` was run
+  // npm_config_local_prefix points to the project root with node_modules
+  var installRoot = process.env.INIT_CWD || process.env.npm_config_local_prefix || process.cwd();
+  // Method 1: Check node_modules in the install root
+  var nmPath = path.join(installRoot, "node_modules", "oh-my-opencode");
+  if (existsSync(nmPath)) return true;
+  // Method 2: Check sibling from __dirname (works if installed to node_modules directly)
+  var siblingPath = path.resolve(__dirname, "..", "..", "oh-my-opencode");
+  if (existsSync(siblingPath)) return true;
+  // Method 3: Try require.resolve
   try {
     require.resolve("oh-my-opencode");
     return true;
   } catch {
-    return false;
+    // not resolvable
   }
+  // Method 4: Check global node_modules
+  try {
+    var npmPrefix = require("child_process").execSync("npm prefix -g", { encoding: "utf-8" }).trim();
+    if (existsSync(path.join(npmPrefix, "lib", "node_modules", "oh-my-opencode"))) return true;
+  } catch {
+    // npm not available
+  }
+  return false;
 }
 
 async function writeOmoConfig() {
