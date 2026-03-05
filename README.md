@@ -112,6 +112,15 @@ npm install github:Jalone5186/opencode-newclaw-auth
 
 安装完成后，`postinstall` 脚本会自动将插件配置写入 `~/.config/opencode/opencode.json`。
 
+**🚀 想要更强大的 AI 代理编排？一键同时安装 [oh-my-opencode](https://github.com/code-yeongyu/oh-my-opencode)：**
+
+```bash
+# 一键安装 NewClaw + oh-my-opencode（推荐）
+npm install github:Jalone5186/opencode-newclaw-auth oh-my-opencode
+```
+
+详见 [INSTALL-WITH-OMO.md](./INSTALL-WITH-OMO.md)。
+
 ### 第二步：配置 API Key
 
 **方式 A：通过环境变量（推荐）**

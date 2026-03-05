@@ -139,15 +139,61 @@ function applyProviderConfig(config) {
   return changed;
 }
 
+async function checkOmoInstalled() {
+  try {
+    require.resolve("oh-my-opencode");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function writeOmoConfig() {
+  var omoConfigPath = path.join(configDir, "oh-my-opencode.json");
+  var defaultConfigPath = path.resolve(__dirname, "..", "assets", "default-omo-config.json");
+
+  try {
+    var defaultConfig = JSON.parse(await readFile(defaultConfigPath, "utf-8"));
+    var existingConfig = {};
+
+    try {
+      existingConfig = JSON.parse(await readFile(omoConfigPath, "utf-8"));
+    } catch {
+      // no existing config
+    }
+
+    // Merge: defaults first, then user overrides
+    var merged = Object.assign({}, defaultConfig);
+    if (existingConfig.agents && typeof existingConfig.agents === "object") {
+      merged.agents = Object.assign({}, defaultConfig.agents, existingConfig.agents);
+    }
+    if (existingConfig.categories && typeof existingConfig.categories === "object") {
+      merged.categories = Object.assign({}, defaultConfig.categories, existingConfig.categories);
+    }
+
+    await writeFile(omoConfigPath, JSON.stringify(merged, null, 2) + "\n", "utf-8");
+    console.log("[" + PACKAGE_NAME + "] Synced oh-my-opencode config at " + omoConfigPath);
+  } catch (e) {
+    // Non-fatal: OMO config sync is optional
+    console.warn("[" + PACKAGE_NAME + "] Could not sync OMO config: " + (e instanceof Error ? e.message : e));
+  }
+}
+
 async function main() {
-  const config = (await readJson(configPath)) || {};
+  var config = (await readJson(configPath)) || {};
 
-  const changed = applyProviderConfig(config);
-  if (!changed) return;
+  var changed = applyProviderConfig(config);
+  if (changed) {
+    await mkdir(configDir, { recursive: true });
+    await writeFile(configPath, JSON.stringify(config, null, 2) + "\n", "utf-8");
+    console.log("[" + PACKAGE_NAME + "] Updated OpenCode config at " + configPath);
+  }
 
-  await mkdir(configDir, { recursive: true });
-  await writeFile(configPath, JSON.stringify(config, null, 2) + "\n", "utf-8");
-  console.log("[" + PACKAGE_NAME + "] Updated OpenCode config at " + configPath);
+  // Sync OMO config if oh-my-opencode is installed
+  var omoInstalled = await checkOmoInstalled();
+  if (omoInstalled) {
+    await writeOmoConfig();
+  }
 }
 
 main().catch(function (error) {

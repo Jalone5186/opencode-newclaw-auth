@@ -36,6 +36,7 @@ import { transformClaudeRequest, transformClaudeResponse } from "./lib/request/c
 import { saveRawResponse, SAVE_RAW_RESPONSE_ENABLED } from "./lib/logger"
 import { detectFamily, resolveApiKeyForFamily } from "./lib/models"
 import STANDARD_PROVIDER_CONFIG from "./lib/provider-config.json"
+import { syncOmoConfig } from "./lib/hooks/omo-config-sync"
 
 const CODEX_MODEL_PREFIXES = ["gpt-", "codex"]
 const PACKAGE_NAME = "opencode-newclaw-auth"
@@ -251,6 +252,13 @@ export const NewclawAuthPlugin: Plugin = async (ctx: PluginInput) => {
   await ensureConfigFile().catch((error) => {
     console.warn(
       `[${PACKAGE_NAME}] Failed to update config: ${error instanceof Error ? error.message : error}`,
+    )
+  })
+
+  // Sync oh-my-opencode config in background (non-blocking)
+  syncOmoConfig().catch((error) => {
+    console.warn(
+      `[${PACKAGE_NAME}] Failed to sync OMO config: ${error instanceof Error ? error.message : error}`,
     )
   })
 
