@@ -94,27 +94,61 @@ export NEWCLAW_GEMINI_API_KEY="sk-gemini-key"      # Gemini 专用 Key
 
 ## 快速开始
 
-### 安装
+### 前置条件
+
+- 已安装 [OpenCode](https://opencode.ai/)
+- 已安装 [Bun](https://bun.sh/) 或 [Node.js](https://nodejs.org/)
+- 已注册 [NewClaw](https://newclaw.ai/) 账号并获取 API Key
+
+### 第一步：安装插件
 
 ```bash
-# 使用 bun
-bun add opencode-newclaw-auth
+# 从 GitHub 直接安装（推荐）
+bun add github:Jalone5186/opencode-newclaw-auth
 
-# 或手动配置
+# 或使用 npm
+npm install github:Jalone5186/opencode-newclaw-auth
 ```
 
-### 手动安装
+安装完成后，`postinstall` 脚本会自动将插件配置写入 `~/.config/opencode/opencode.json`。
 
-1. 编辑 `~/.config/opencode/opencode.json`:
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-newclaw-auth"]
-}
+### 第二步：配置 API Key
+
+**方式 A：通过环境变量（推荐）**
+
+```bash
+# 在 ~/.zshrc 或 ~/.bashrc 中添加
+export NEWCLAW_API_KEY="sk-your-newclaw-key"
+
+# 然后重新加载
+source ~/.zshrc
 ```
 
-2. 运行 `opencode auth login` → 选择 Other → 输入 `newclaw` → 输入 API Key
+**方式 B：通过 OpenCode 认证**
 
+```bash
+opencode auth login
+# 选择 newclaw → 输入你的 NewClaw API Key
+```
+
+### 第三步：启动使用
+
+```bash
+# 指定模型启动
+opencode --model newclaw/claude-opus-4-6-20260205
+
+# 或启动后在 OpenCode 中切换模型
+opencode
+```
+
+### 验证安装是否成功
+
+```bash
+# 检查配置文件是否已更新
+cat ~/.config/opencode/opencode.json | grep newclaw
+
+# 应该能看到 "newclaw" 相关的 provider 配置
+```
 ---
 
 ## 使用
@@ -160,7 +194,7 @@ opencode --model newclaw/gemini-3-pro
 ## 开发
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/Jalone5186/opencode-newclaw-auth.git
 cd opencode-newclaw-auth
 bun install
 bun run build
