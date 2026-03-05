@@ -134,11 +134,14 @@ source ~/.zshrc
 ```
 
 **方式 B：通过 OpenCode 认证**
-
 ```bash
 opencode auth login
-# 选择 newclaw → 输入你的 NewClaw API Key
+# 在列表中选择 "NewClaw API Key" → 输入你的 API Key
+# 注意：需要先安装插件并重启 OpenCode 后才会出现此选项
 ```
+如果列表中没有看到 "NewClaw API Key" 选项，请确认：
+1. 插件已正确安装（`cat ~/.config/opencode/opencode.json | grep newclaw`）
+2. 重启 OpenCode 后再试
 
 ### 第三步：启动使用
 
