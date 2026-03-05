@@ -10,10 +10,10 @@ oh-my-opencode 提供多模型编排、并行后台代理、LSP/AST 工具等高
 
 ```bash
 # 同时安装两个插件
-npm install github:Jalone5186/opencode-newclaw-auth oh-my-opencode
+npm install https://github.com/Jalone5186/opencode-newclaw-auth.git oh-my-opencode
 
 # 或使用 bun
-bun add github:Jalone5186/opencode-newclaw-auth oh-my-opencode
+bun add https://github.com/Jalone5186/opencode-newclaw-auth.git oh-my-opencode
 ```
 
 安装完成后会自动：
@@ -48,7 +48,7 @@ opencode --model newclaw/claude-opus-4-6-20260205
 如果你只需要 NewClaw 认证，不需要 oh-my-opencode 的增强功能：
 
 ```bash
-npm install github:Jalone5186/opencode-newclaw-auth
+npm install https://github.com/Jalone5186/opencode-newclaw-auth.git
 ```
 
 详见 [README.md](./README.md)。

@@ -104,10 +104,10 @@ export NEWCLAW_GEMINI_API_KEY="sk-gemini-key"      # Gemini 专用 Key
 
 ```bash
 # 从 GitHub 直接安装（推荐）
-bun add github:Jalone5186/opencode-newclaw-auth
+npm install https://github.com/Jalone5186/opencode-newclaw-auth.git
 
-# 或使用 npm
-npm install github:Jalone5186/opencode-newclaw-auth
+# 或使用 bun
+bun add https://github.com/Jalone5186/opencode-newclaw-auth.git
 ```
 
 安装完成后，`postinstall` 脚本会自动将插件配置写入 `~/.config/opencode/opencode.json`。
@@ -116,7 +116,7 @@ npm install github:Jalone5186/opencode-newclaw-auth
 
 ```bash
 # 一键安装 NewClaw + oh-my-opencode（推荐）
-npm install github:Jalone5186/opencode-newclaw-auth oh-my-opencode
+npm install https://github.com/Jalone5186/opencode-newclaw-auth.git oh-my-opencode
 ```
 
 详见 [INSTALL-WITH-OMO.md](./INSTALL-WITH-OMO.md)。
@@ -177,7 +177,7 @@ node node_modules/opencode-newclaw-auth/scripts/install-opencode-newclaw.cjs
 **Q: 如何同时使用 oh-my-opencode？**
 
 ```bash
-npm install github:Jalone5186/opencode-newclaw-auth oh-my-opencode
+npm install https://github.com/Jalone5186/opencode-newclaw-auth.git oh-my-opencode
 ```
 详见 [INSTALL-WITH-OMO.md](./INSTALL-WITH-OMO.md)。
 
