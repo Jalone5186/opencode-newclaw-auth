@@ -193,14 +193,28 @@ async function main() {
   var config = (await readJson(activeConfigPath)) || {};
 
   var changed = applyProviderConfig(config);
+
+  // If oh-my-opencode is installed, register it as a plugin too
+  var omoInstalled = await checkOmoInstalled();
+  if (omoInstalled) {
+    var plugins = Array.isArray(config.plugin) ? config.plugin : [];
+    var hasOmo = plugins.some(function (entry) {
+      return typeof entry === "string" && (entry === "oh-my-opencode" || entry.startsWith("oh-my-opencode@"));
+    });
+    if (!hasOmo) {
+      config.plugin = plugins.concat(["oh-my-opencode"]);
+      changed = true;
+      console.log("[" + PACKAGE_NAME + "] Added oh-my-opencode to plugin list");
+    }
+  }
+
   if (changed) {
     await mkdir(configDir, { recursive: true });
     await writeFile(activeConfigPath, JSON.stringify(config, null, 2) + "\n", "utf-8");
     console.log("[" + PACKAGE_NAME + "] Updated OpenCode config at " + activeConfigPath);
   }
 
-  // Sync OMO config if oh-my-opencode is installed
-  var omoInstalled = await checkOmoInstalled();
+  // Sync OMO model assignments config
   if (omoInstalled) {
     await writeOmoConfig();
   }

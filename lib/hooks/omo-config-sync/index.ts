@@ -97,6 +97,30 @@ export async function syncOmoConfig(): Promise<void> {
 
   await mkdir(configDir, { recursive: true })
 
+  // 1. Ensure oh-my-opencode is in opencode.json plugin list
+  const opencodeConfigPath = path.join(configDir, "opencode.json")
+  const jsoncPath = path.join(configDir, "opencode.jsonc")
+  const activeConfigPath = (await fileExists(jsoncPath)) ? jsoncPath : opencodeConfigPath
+  try {
+    let configText = ""
+    try { configText = await readFile(activeConfigPath, "utf-8") } catch { /* no file */ }
+    if (configText) {
+      const config = JSON.parse(configText) as Record<string, any>
+      const plugins: unknown[] = Array.isArray(config.plugin) ? config.plugin : []
+      const hasOmo = plugins.some(
+        (e) => typeof e === "string" && (e === "oh-my-opencode" || (e as string).startsWith("oh-my-opencode@")),
+      )
+      if (!hasOmo) {
+        config.plugin = [...plugins, "oh-my-opencode"]
+        await writeFile(activeConfigPath, JSON.stringify(config, null, 2) + "\n", "utf-8")
+        console.log(`[${PLUGIN_NAME}] Added oh-my-opencode to plugin list`)
+      }
+    }
+  } catch {
+    // Non-fatal
+  }
+
+  // 2. Sync oh-my-opencode.json model assignments
   let existingConfig: Record<string, any> = {}
   if (await fileExists(omoConfigPath)) {
     try {
@@ -110,7 +134,6 @@ export async function syncOmoConfig(): Promise<void> {
   const mergedConfig = mergeOmoConfig(existingConfig, defaultOmoConfig)
   const mergedStr = JSON.stringify(mergedConfig, null, 2) + "\n"
 
-  // Only write if content actually changed
   let existingStr = ""
   try {
     existingStr = await readFile(omoConfigPath, "utf-8")
