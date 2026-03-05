@@ -1,0 +1,152 @@
+#!/usr/bin/env node
+
+/**
+ * @file install-opencode-newclaw.js
+ * @input  ~/.config/opencode/opencode.json
+ * @output Updated opencode.json with newclaw provider config
+ * @pos    postinstall script - auto-configures OpenCode for NewClaw
+ */
+
+import { existsSync } from "node:fs";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
+import os from "node:os";
+
+const PACKAGE_NAME = "opencode-newclaw-auth";
+const PROVIDER_ID = "newclaw";
+const PROVIDER_NAME = "NewClaw";
+const PLUGIN_ENTRY = new URL("../index.ts", import.meta.url).href;
+const PROVIDER_NPM = new URL("../provider.ts", import.meta.url).href;
+const DEFAULT_API = "https://newclaw.ai/v1";
+const DEFAULT_ENV = ["NEWCLAW_API_KEY"];
+
+const IMAGE_MODALITIES = { input: ["text", "image"], output: ["text"] };
+
+const MODEL_CONFIGS = {
+  "claude-opus-4-6-20260205": { name: "Claude Opus 4.6", modalities: IMAGE_MODALITIES },
+  "claude-sonnet-4-5-20250929": { name: "Claude Sonnet 4.5", modalities: IMAGE_MODALITIES },
+  "claude-sonnet-4-6": { name: "Claude Sonnet 4.6", modalities: IMAGE_MODALITIES },
+  "claude-haiku-4-5-20251001": { name: "Claude Haiku 4.5", modalities: IMAGE_MODALITIES },
+  "gpt-5.3-codex": { name: "GPT-5.3 Codex", modalities: IMAGE_MODALITIES },
+  "gpt-5.2": { name: "GPT-5.2", modalities: IMAGE_MODALITIES },
+  "gemini-3-pro": { name: "Gemini 3 Pro", modalities: IMAGE_MODALITIES },
+  "gemini-3.1-pro-preview": { name: "Gemini 3.1 Pro Preview", modalities: IMAGE_MODALITIES },
+};
+
+const DEFAULT_MODEL = "newclaw/claude-opus-4-6-20260205";
+
+const ALLOWED_MODEL_IDS = Object.keys(MODEL_CONFIGS);
+
+const home = process.env.OPENCODE_TEST_HOME || os.homedir();
+const configRoot = process.env.XDG_CONFIG_HOME || path.join(home, ".config");
+const configDir = path.join(configRoot, "opencode");
+const configPath = path.join(configDir, "opencode.json");
+
+async function readJson(filePath) {
+  try {
+    const text = await readFile(filePath, "utf-8");
+    return JSON.parse(text);
+  } catch {
+    return;
+  }
+}
+
+function toModelMap(ids, existing = {}) {
+  return ids.reduce((acc, id) => {
+    const existingConfig = Object.prototype.hasOwnProperty.call(existing, id) ? existing[id] : {};
+    const defaultConfig = MODEL_CONFIGS[id] ?? {};
+    acc[id] = { ...defaultConfig, ...(typeof existingConfig === "object" ? existingConfig : {}) };
+    return acc;
+  }, {});
+}
+
+function ensurePluginEntry(list) {
+  if (!Array.isArray(list)) return [PLUGIN_ENTRY];
+  const hasPlugin = list.some(
+    (entry) =>
+      typeof entry === "string" &&
+      (entry === PLUGIN_ENTRY || entry === PACKAGE_NAME || entry.startsWith(`${PACKAGE_NAME}@`)),
+  );
+  return hasPlugin ? list : [...list, PLUGIN_ENTRY];
+}
+
+function applyProviderConfig(config) {
+  if (!config || typeof config !== "object") return false;
+
+  let changed = false;
+
+  const providerMap = config.provider && typeof config.provider === "object" ? config.provider : {};
+  const existing = providerMap[PROVIDER_ID] && typeof providerMap[PROVIDER_ID] === "object" ? providerMap[PROVIDER_ID] : {};
+  const existingModels = existing.models && typeof existing.models === "object" ? existing.models : {};
+
+  const next = { ...existing };
+
+  if (!next.name) {
+    next.name = PROVIDER_NAME;
+    changed = true;
+  }
+
+  if (!Array.isArray(next.env)) {
+    next.env = DEFAULT_ENV;
+    changed = true;
+  }
+
+  if (
+    !next.npm ||
+    (typeof next.npm === "string" &&
+      (next.npm === PACKAGE_NAME || next.npm.startsWith(`${PACKAGE_NAME}@`)))
+  ) {
+    next.npm = PROVIDER_NPM;
+    changed = true;
+  }
+
+  if (!next.api) {
+    next.api = DEFAULT_API;
+    changed = true;
+  }
+
+  const hasMissingModels = ALLOWED_MODEL_IDS.some(
+    (id) => !Object.prototype.hasOwnProperty.call(existingModels, id),
+  );
+  if (!next.models || hasMissingModels) {
+    next.models = { ...existingModels, ...toModelMap(ALLOWED_MODEL_IDS, existingModels) };
+    changed = true;
+  }
+
+  providerMap[PROVIDER_ID] = next;
+  if (config.provider !== providerMap) {
+    config.provider = providerMap;
+    changed = true;
+  }
+
+  const nextPlugins = ensurePluginEntry(config.plugin);
+  if (nextPlugins !== config.plugin) {
+    config.plugin = nextPlugins;
+    changed = true;
+  }
+
+  // Set default model if not configured
+  if (!config.model) {
+    config.model = DEFAULT_MODEL;
+    changed = true;
+  }
+
+  return changed;
+}
+
+async function main() {
+  const config = (await readJson(configPath)) ?? {};
+
+  const changed = applyProviderConfig(config);
+  if (!changed) return;
+
+  await mkdir(configDir, { recursive: true });
+  await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf-8");
+  console.log(`[${PACKAGE_NAME}] Updated OpenCode config at ${configPath}`);
+}
+
+main().catch((error) => {
+  console.error(
+    `[${PACKAGE_NAME}] Failed to update opencode config: ${error instanceof Error ? error.message : error}`,
+  );
+});

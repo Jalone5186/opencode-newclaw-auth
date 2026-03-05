@@ -1,0 +1,64 @@
+{
+  "name": "opencode-newclaw-auth",
+  "version": "0.1.0",
+  "description": "OpenCode plugin for NewClaw authentication - Access Claude, Codex, and Gemini models through NewClaw API with per-model or unified key support",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./provider": {
+      "types": "./dist/provider.d.ts",
+      "import": "./dist/provider.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "bun build index.ts provider.ts --outdir dist --target bun --format esm --external @ai-sdk/anthropic --external @ai-sdk/google --external @ai-sdk/openai --external @ai-sdk/provider --external @ai-sdk/provider-utils --external @opencode-ai/plugin --external @opencode-ai/sdk",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "bun run clean && bun run build",
+    "typecheck": "bunx tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "postinstall": "bun ./scripts/install-opencode-newclaw.js"
+  },
+  "keywords": [
+    "opencode",
+    "plugin",
+    "newclaw",
+    "claude",
+    "codex",
+    "gemini",
+    "ai",
+    "llm",
+    "authentication",
+    "api-proxy"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "2.0.56",
+    "@ai-sdk/google": "2.0.49",
+    "@ai-sdk/openai": "2.0.71",
+    "@ai-sdk/provider": "2.0.0",
+    "@ai-sdk/provider-utils": "3.0.19"
+  },
+  "peerDependencies": {
+    "@opencode-ai/plugin": "^1.0.150"
+  },
+  "devDependencies": {
+    "@opencode-ai/sdk": "^1.1.53",
+    "@types/node": "^22.19.8",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  }
+}
