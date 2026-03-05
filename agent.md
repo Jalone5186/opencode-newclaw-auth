@@ -128,18 +128,29 @@ opencode-newclaw-auth/
 
 ---
 
-## 注意事项
-
 1. **这是 OpenCode 插件**，不是 Claude Code CLI 或 Gemini CLI 的插件
-2. **postinstall 脚本**会自动修改 `~/.config/opencode/opencode.json`
-3. **Claude 工具前缀**: `claude-tools-transform.ts` 给工具名加 `mcp_` 前缀以绕过 OAuth 限制
+2. **postinstall 脚本**使用 CommonJS (.cjs) + node 执行，兼容无 bun 环境
+3. **Claude 工具前缀**: `claude-tools-transform.ts` 给工具名加 `mcp_` 前缀（带防重复检查）
 4. **Plugin 类型**: `Plugin = (input: PluginInput) => Promise<Hooks>`，必须是 async 函数
 5. **Auth 方法类型**: 必须是 `"api"`（不是 `"custom"`），配合 `prompts` 和 `authorize` 使用
-
+6. **Gemini 请求**: 使用专用 headers (x-goog-api-key, x-goog-api-client) 和 URL 构建器 (buildGeminiUrl)
+7. **oh-my-opencode 集成**: 可选，安装后自动同步 OMO 配置到 `~/.config/opencode/oh-my-opencode.json`
 ---
-
 ## 版本历史
-
+- **v0.2.0** (2026-03-06): 全面优化
+  - 修复 postinstall 使用绝对路径导致跨机器安装失败的 bug
+  - 修复 postinstall 依赖 bun 的问题，改用 node + CommonJS
+  - 添加 Gemini 专用 URL 构建器 (buildGeminiUrl + ensureGeminiSseParam)
+  - 添加 Gemini 专用请求头 (x-goog-api-key, x-goog-api-client, User-Agent)
+  - 添加 normalizeOrphanedToolOutputs 防止孤立工具输出导致 API 报错
+  - 修复 Claude 工具前缀双重应用 bug（添加 startsWith 检查）
+  - 修复 rewriteUrl 缺少 try/catch 导致异常 URL 崩溃
+  - 修复 fallback fetch 不注入认证头导致 401 错误
+  - 修复 isOmoInstalled 在旧 Node.js 下误判的问题
+  - 添加 postinstall 对 .jsonc 配置文件的支持
+  - 添加 oh-my-opencode 可选集成（一键安装 + 自动配置同步）
+  - 添加 INSTALL-WITH-OMO.md 安装文档
+  - 添加 README 常见问题排查
 - **v0.1.0** (2026-03-06): 初始版本
   - 基于 opencode-aicodewith-auth 参考项目构建
   - 支持 Claude Code、Codex、Gemini 三大模型家族

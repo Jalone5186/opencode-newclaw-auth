@@ -8,7 +8,7 @@
 import { HEADER_NAMES, ORIGINATOR, USER_AGENT } from "../constants"
 import { logRequest, logDebug } from "../logger"
 import type { RequestBody } from "../types"
-import { transformRequestBody, sanitizeItemIds } from "./request-transformer"
+import { transformRequestBody, sanitizeItemIds, normalizeOrphanedToolOutputs } from "./request-transformer"
 import { convertSseToJson, ensureContentType } from "./response-handler"
 
 export function extractRequestUrl(input: Request | string | URL): string {
@@ -23,6 +23,7 @@ export function sanitizeRequestBody(bodyStr: string): string {
     body.store = false
     if (Array.isArray(body.input)) {
       body.input = sanitizeItemIds(body.input)
+      body.input = normalizeOrphanedToolOutputs(body.input)
     }
     return JSON.stringify(body)
   } catch {

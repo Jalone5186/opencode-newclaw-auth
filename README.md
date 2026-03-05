@@ -31,7 +31,7 @@
 │  └── request/          请求转换 & 响应处理                       │
 ├─────────────────────────────────────────────────────────────────┤
 │  scripts/          安装自动化                                     │
-│  └── install-opencode-newclaw.js   postinstall 配置写入          │
+│  └── install-opencode-newclaw.cjs  postinstall 配置写入          │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -158,7 +158,37 @@ cat ~/.config/opencode/opencode.json | grep newclaw
 
 # 应该能看到 "newclaw" 相关的 provider 配置
 ```
+
 ---
+
+## 常见问题
+
+**Q: 安装时报错 `bun: command not found`**
+
+已修复。当前版本使用 `node` 执行 postinstall 脚本，不再依赖 bun。请确保使用最新版本。
+
+**Q: 安装后 opencode.json 没有更新**
+
+手动运行 postinstall 脚本：
+```bash
+node node_modules/opencode-newclaw-auth/scripts/install-opencode-newclaw.cjs
+```
+
+**Q: 如何同时使用 oh-my-opencode？**
+
+```bash
+npm install github:Jalone5186/opencode-newclaw-auth oh-my-opencode
+```
+详见 [INSTALL-WITH-OMO.md](./INSTALL-WITH-OMO.md)。
+
+**Q: 如何为不同模型使用不同的 API Key？**
+
+设置对应的环境变量即可，优先级高于统一 Key：
+```bash
+export NEWCLAW_CLAUDE_API_KEY="sk-claude-key"
+export NEWCLAW_CODEX_API_KEY="sk-codex-key"
+export NEWCLAW_GEMINI_API_KEY="sk-gemini-key"
+```
 
 ## 使用
 

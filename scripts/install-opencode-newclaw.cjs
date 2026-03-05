@@ -40,16 +40,25 @@ const ALLOWED_MODEL_IDS = Object.keys(MODEL_CONFIGS);
 const home = process.env.OPENCODE_TEST_HOME || os.homedir();
 const configRoot = process.env.XDG_CONFIG_HOME || path.join(home, ".config");
 const configDir = path.join(configRoot, "opencode");
+const configJsoncPath = path.join(configDir, "opencode.jsonc");
 const configPath = path.join(configDir, "opencode.json");
 
-// Resolve plugin entry and provider npm paths relative to this script
-const PLUGIN_ENTRY = path.resolve(__dirname, "..", "index.ts");
-const PROVIDER_NPM = path.resolve(__dirname, "..", "provider.ts");
+// Plugin entry uses package name (portable across machines)
+const PLUGIN_ENTRY = PACKAGE_NAME;
+const PROVIDER_NPM = require("node:url").pathToFileURL(path.resolve(__dirname, "..", "provider.ts")).href;
+
+function stripJsoncComments(text) {
+  // Remove single-line comments and multi-line comments
+  return text
+    .replace(/\/\/[^\n]*/g, "")
+    .replace(/\/\*[\s\S]*?\*\//g, "");
+}
 
 async function readJson(filePath) {
   try {
     const text = await readFile(filePath, "utf-8");
-    return JSON.parse(text);
+    const isJsonc = filePath.endsWith(".jsonc");
+    return JSON.parse(isJsonc ? stripJsoncComments(text) : text);
   } catch {
     return undefined;
   }
@@ -180,13 +189,14 @@ async function writeOmoConfig() {
 }
 
 async function main() {
-  var config = (await readJson(configPath)) || {};
+  var activeConfigPath = existsSync(configJsoncPath) ? configJsoncPath : configPath;
+  var config = (await readJson(activeConfigPath)) || {};
 
   var changed = applyProviderConfig(config);
   if (changed) {
     await mkdir(configDir, { recursive: true });
-    await writeFile(configPath, JSON.stringify(config, null, 2) + "\n", "utf-8");
-    console.log("[" + PACKAGE_NAME + "] Updated OpenCode config at " + configPath);
+    await writeFile(activeConfigPath, JSON.stringify(config, null, 2) + "\n", "utf-8");
+    console.log("[" + PACKAGE_NAME + "] Updated OpenCode config at " + activeConfigPath);
   }
 
   // Sync OMO config if oh-my-opencode is installed

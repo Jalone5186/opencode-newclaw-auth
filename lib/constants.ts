@@ -19,6 +19,8 @@ export const CODEX_BASE_URL = "https://newclaw.ai/v1"
 
 export const USER_AGENT = "opencode-newclaw-auth/0.1.0"
 export const ORIGINATOR = "opencode_newclaw"
+export const GEMINI_USER_AGENT = "GeminiCLI/v25.2.1 (darwin; arm64)"
+export const GEMINI_API_CLIENT = "google-genai-sdk/1.30.0 gl-node/v25.2.1"
 
 export const SAVE_RAW_RESPONSE_ENV = "SAVE_RAW_RESPONSE"
 

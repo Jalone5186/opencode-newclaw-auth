@@ -98,6 +98,24 @@ export function getReasoningConfig(
     summary: userConfig.reasoningSummary || "auto",
   }
 }
+/**
+ * Normalize orphaned tool outputs: if a function_call_output has no matching
+ * function_call in the input, remove it to prevent API errors.
+ */
+export function normalizeOrphanedToolOutputs(input: InputItem[]): InputItem[] {
+  const callIds = new Set<string>()
+  for (const item of input) {
+    if (item.type === "function_call" && typeof item.call_id === "string") {
+      callIds.add(item.call_id)
+    }
+  }
+  return input.filter((item) => {
+    if (item.type === "function_call_output" && typeof item.call_id === "string") {
+      return callIds.has(item.call_id)
+    }
+    return true
+  })
+}
 
 export async function transformRequestBody(body: RequestBody): Promise<RequestBody> {
   const originalModel = body.model
@@ -113,6 +131,7 @@ export async function transformRequestBody(body: RequestBody): Promise<RequestBo
 
   if (body.input && Array.isArray(body.input)) {
     body.input = sanitizeItemIds(body.input)
+    body.input = normalizeOrphanedToolOutputs(body.input)
   }
 
   const reasoningConfig = resolveReasoningConfig(normalizedModel, body)

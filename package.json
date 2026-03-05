@@ -1,6 +1,6 @@
 {
   "name": "opencode-newclaw-auth",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "OpenCode plugin for NewClaw authentication - Access Claude, Codex, and Gemini models through NewClaw API with per-model or unified key support",
   "type": "module",
   "main": "dist/index.js",

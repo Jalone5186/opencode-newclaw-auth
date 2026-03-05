@@ -48,7 +48,7 @@ export function transformClaudeRequest(init?: RequestInit): RequestInit | undefi
     // Add prefix to tools definitions
     if (parsed.tools && Array.isArray(parsed.tools)) {
       parsed.tools = parsed.tools.map((tool) => {
-        if (tool.name) {
+        if (tool.name && !tool.name.startsWith(TOOL_PREFIX)) {
           modified = true
           return { ...tool, name: `${TOOL_PREFIX}${tool.name}` }
         }
@@ -61,7 +61,7 @@ export function transformClaudeRequest(init?: RequestInit): RequestInit | undefi
       parsed.messages = parsed.messages.map((msg) => {
         if (msg.content && Array.isArray(msg.content)) {
           const newContent = msg.content.map((block) => {
-            if (block.type === "tool_use" && block.name) {
+            if (block.type === "tool_use" && block.name && !block.name.startsWith(TOOL_PREFIX)) {
               modified = true
               return { ...block, name: `${TOOL_PREFIX}${block.name}` }
             }

@@ -34,13 +34,15 @@ const fileExists = async (filePath: string) => {
  */
 async function isOmoInstalled(): Promise<boolean> {
   try {
-    // Check if oh-my-opencode is resolvable
-    await import.meta.resolve?.("oh-my-opencode")
-    return true
+    if (typeof import.meta.resolve === "function") {
+      import.meta.resolve("oh-my-opencode")
+      return true
+    }
   } catch {
-    // Fallback: check if the config file already exists (user may have installed it globally)
-    return fileExists(omoConfigPath)
+    // not found via import.meta.resolve
   }
+  // Fallback: check if the config file already exists
+  return fileExists(omoConfigPath)
 }
 
 /**

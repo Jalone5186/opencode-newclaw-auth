@@ -23,6 +23,8 @@ import {
   NEWCLAW_GEMINI_BASE_URL,
   NEWCLAW_BASE_URL,
   HEADER_NAMES,
+  GEMINI_USER_AGENT,
+  GEMINI_API_CLIENT,
 } from "./lib/constants"
 import {
   transformRequestForCodex,
@@ -210,27 +212,78 @@ const saveResponseIfEnabled = async (
 }
 
 const rewriteUrl = (originalUrl: string, baseUrl: string) => {
-  const base = new URL(baseUrl)
-  const original = new URL(originalUrl)
-  const basePath = base.pathname.replace(/\/$/, "")
-  const normalizedBase = `${base.origin}${basePath}`
-  const normalizedOriginal = `${original.origin}${original.pathname}`
+  try {
+    const base = new URL(baseUrl)
+    const original = new URL(originalUrl)
+    const basePath = base.pathname.replace(/\/$/, "")
+    const normalizedBase = `${base.origin}${basePath}`
+    const normalizedOriginal = `${original.origin}${original.pathname}`
 
-  if (normalizedOriginal.startsWith(normalizedBase)) {
-    return original.toString()
+    if (normalizedOriginal.startsWith(normalizedBase)) {
+      return original.toString()
+    }
+
+    const rewritten = new URL(original.toString())
+    rewritten.protocol = base.protocol
+    rewritten.host = base.host
+
+    let targetPath = original.pathname
+    if (basePath.endsWith("/v1") && targetPath.startsWith("/v1/")) {
+      targetPath = targetPath.slice(3)
+    }
+
+    rewritten.pathname = `${basePath}${targetPath}`
+    return rewritten.toString()
+  } catch {
+    return originalUrl
   }
+}
 
-  const rewritten = new URL(original.toString())
-  rewritten.protocol = base.protocol
-  rewritten.host = base.host
-
-  let targetPath = original.pathname
-  if (basePath.endsWith("/v1") && targetPath.startsWith("/v1/")) {
-    targetPath = targetPath.slice(3)
+const ensureGeminiSseParam = (url: string) => {
+  try {
+    const parsed = new URL(url)
+    const alt = parsed.searchParams.get("alt")
+    if (alt === "sse") return url
+    parsed.searchParams.set("alt", "sse")
+    return parsed.toString()
+  } catch {
+    return url
   }
+}
 
-  rewritten.pathname = `${basePath}${targetPath}`
-  return rewritten.toString()
+const buildGeminiUrl = (originalUrl: string, streaming: boolean) => {
+  try {
+    const original = new URL(originalUrl)
+    let urlPath = original.pathname
+    if (!urlPath.includes("/v1beta/") && !urlPath.includes("/v1/")) {
+      urlPath = `/v1beta${urlPath.startsWith("/") ? "" : "/"}${urlPath}`
+    }
+    const base = new URL(NEWCLAW_GEMINI_BASE_URL)
+    const basePath = base.pathname.replace(/\/$/, "")
+    const target = new URL(base.origin)
+    target.pathname = `${basePath}${urlPath}`
+    target.search = original.search
+    const url = target.toString()
+    return streaming ? ensureGeminiSseParam(url) : url
+  } catch {
+    return originalUrl
+  }
+}
+
+const createGeminiHeaders = (init: RequestInit | undefined, apiKey: string) => {
+  const headers = new Headers(init?.headers ?? {})
+  headers.delete(HEADER_NAMES.AUTHORIZATION)
+  headers.delete("x-api-key")
+  headers.set(HEADER_NAMES.USER_AGENT, GEMINI_USER_AGENT)
+  headers.set(HEADER_NAMES.X_GOOG_API_CLIENT, GEMINI_API_CLIENT)
+  headers.set(HEADER_NAMES.X_GOOG_API_KEY, apiKey)
+  if (!headers.has(HEADER_NAMES.ACCEPT)) {
+    headers.set(HEADER_NAMES.ACCEPT, "*/*")
+  }
+  if (!headers.has(HEADER_NAMES.CONTENT_TYPE)) {
+    headers.set(HEADER_NAMES.CONTENT_TYPE, "application/json")
+  }
+  return headers
 }
 
 const getOutputTokenLimit = (
@@ -317,16 +370,12 @@ export const NewclawAuthPlugin: Plugin = async (ctx: PluginInput) => {
           }
 
           if (isGeminiRequest) {
-            const headers = new Headers(init?.headers ?? {})
-            headers.set(HEADER_NAMES.AUTHORIZATION, `Bearer ${resolvedApiKey}`)
-            if (!headers.has(HEADER_NAMES.CONTENT_TYPE)) {
-              headers.set(HEADER_NAMES.CONTENT_TYPE, "application/json")
-            }
-
-            const targetUrl = rewriteUrl(originalUrl, NEWCLAW_GEMINI_BASE_URL)
+            const isGeminiStreaming = isStreaming || originalUrl.includes("streamGenerateContent")
+            const geminiUrl = buildGeminiUrl(originalUrl, isGeminiStreaming)
+            const headers = createGeminiHeaders(init, resolvedApiKey)
             const requestInit = { ...init, headers }
-            const response = await fetch(targetUrl, requestInit)
-            return await saveResponseIfEnabled(response, "gemini", { url: targetUrl, model: modelId })
+            const response = await fetch(geminiUrl, requestInit)
+            return await saveResponseIfEnabled(response, "gemini", { url: geminiUrl, model: modelId })
           }
 
           if (isClaudeRequest) {
@@ -350,7 +399,9 @@ export const NewclawAuthPlugin: Plugin = async (ctx: PluginInput) => {
             return transformClaudeResponse(savedResponse)
           }
 
-          return await fetch(originalUrl, init)
+          // Fallback: pass through with auth headers
+          const headers = createNewclawHeaders(init, resolvedApiKey)
+          return await fetch(originalUrl, { ...init, headers })
         },
       }
     },
