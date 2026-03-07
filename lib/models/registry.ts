@@ -203,6 +203,7 @@ export function buildProviderConfig(): Record<string, unknown> {
   }
   return {
     name: "NewClaw",
+    api: "https://newclaw.ai/v1",
     env: ["NEWCLAW_API_KEY"],
     models,
   }

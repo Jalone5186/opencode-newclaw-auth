@@ -70,9 +70,25 @@
 ```bash
 # 通过 OpenCode 认证
 opencode auth login
-# 选择 Other → 输入 newclaw → 输入你的 NewClaw API Key
+```
 
-# 或通过环境变量
+运行后会出现交互式菜单：
+
+```
+? Select a provider:
+  Anthropic
+  Copilot
+> Other              ← 选择这个
+
+? Enter provider name: newclaw     ← 输入 newclaw（小写）
+
+? Enter API key: sk-your-key       ← 粘贴你的 NewClaw API Key
+```
+
+> **注意**：必须先完成「安装插件」步骤，并重新启动 OpenCode 后，`opencode auth login` 的 Other 选项才会生效。重新启动方法：在终端中按 `Ctrl + C` 退出当前 OpenCode，然后重新运行 `opencode`。
+
+```bash
+# 或通过环境变量（无需 opencode auth login）
 export NEWCLAW_API_KEY="sk-your-newclaw-key"
 ```
 
@@ -102,8 +118,22 @@ export NEWCLAW_GEMINI_API_KEY="sk-gemini-key"      # Gemini 专用 Key
 
 ### 第一步：安装插件
 
+**🚀 一键安装 NewClaw + oh-my-opencode（推荐）**
+
+同时安装认证插件和 [oh-my-opencode](https://github.com/code-yeongyu/oh-my-opencode) AI 代理编排框架：
+
 ```bash
-# 从 GitHub 直接安装（推荐）
+npm install https://github.com/Jalone5186/opencode-newclaw-auth.git oh-my-opencode
+
+# 或使用 bun
+bun add https://github.com/Jalone5186/opencode-newclaw-auth.git oh-my-opencode
+```
+
+详见 [INSTALL-WITH-OMO.md](./INSTALL-WITH-OMO.md)。
+
+**仅安装 NewClaw 认证插件：**
+
+```bash
 npm install https://github.com/Jalone5186/opencode-newclaw-auth.git
 
 # 或使用 bun
@@ -112,22 +142,36 @@ bun add https://github.com/Jalone5186/opencode-newclaw-auth.git
 
 安装完成后，`postinstall` 脚本会自动将插件配置写入 `~/.config/opencode/opencode.json`。
 
-**🚀 想要更强大的 AI 代理编排？一键同时安装 [oh-my-opencode](https://github.com/code-yeongyu/oh-my-opencode)：**
-
-```bash
-# 一键安装 NewClaw + oh-my-opencode（推荐）
-npm install https://github.com/Jalone5186/opencode-newclaw-auth.git oh-my-opencode
-```
-
-详见 [INSTALL-WITH-OMO.md](./INSTALL-WITH-OMO.md)。
+> **⚠️ 安装报错 `Permission denied (publickey)` ？**
+> 
+> 这是因为 npm 默认使用 SSH 协议拉取 Git 仓库。运行以下命令强制使用 HTTPS：
+> ```bash
+> git config --global url."https://github.com/".insteadOf "git@github.com:"
+> ```
+> 然后重新执行安装命令即可。
 
 ### 第二步：配置 API Key
 
 **方式 A：通过 OpenCode 认证（推荐）**
+
 ```bash
 opencode auth login
-# 选择 Other → 输入 newclaw → 输入你的 NewClaw API Key
 ```
+
+运行后按以下步骤操作：
+
+```
+? Select a provider:
+  Anthropic
+  Copilot
+> Other              ← 第 1 步：选择 Other
+
+? Enter provider name: newclaw     ← 第 2 步：输入 newclaw（全小写）
+
+? Enter API key: sk-your-key       ← 第 3 步：粘贴你的 NewClaw API Key
+```
+
+> **没看到 Other 选项？** 请确认已完成「第一步：安装插件」，然后重新启动 OpenCode：在终端中按 `Ctrl + C` 退出，再运行 `opencode`。
 **方式 B：通过环境变量**
 ```bash
 # 在 ~/.zshrc 或 ~/.bashrc 中添加
