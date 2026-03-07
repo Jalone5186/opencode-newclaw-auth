@@ -45,7 +45,7 @@ const configPath = path.join(configDir, "opencode.json");
 
 // Plugin entry and provider npm both use package name (portable across machines)
 var PLUGIN_ENTRY = PACKAGE_NAME;
-var PROVIDER_NPM = PACKAGE_NAME;
+var PROVIDER_NPM = PACKAGE_NAME + "/provider";
 
 function stripJsoncComments(text) {
   // Remove single-line comments and multi-line comments

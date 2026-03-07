@@ -43,8 +43,7 @@ import { syncOmoConfig } from "./lib/hooks/omo-config-sync"
 const CODEX_MODEL_PREFIXES = ["gpt-", "codex"]
 const PACKAGE_NAME = "opencode-newclaw-auth"
 const PLUGIN_ENTRY = import.meta.url
-const PROVIDER_EXT = import.meta.url.endsWith(".ts") ? ".ts" : ".js"
-const PROVIDER_NPM = new URL(`./provider${PROVIDER_EXT}`, import.meta.url).href
+const PROVIDER_NPM = `${PACKAGE_NAME}/provider`
 
 const DEFAULT_OUTPUT_TOKEN_MAX = 32000
 
