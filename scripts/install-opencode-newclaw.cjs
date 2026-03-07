@@ -106,16 +106,12 @@ function applyProviderConfig(config) {
     changed = true;
   }
 
-  if (
-    !next.npm ||
-    (typeof next.npm === "string" &&
-      (next.npm === PACKAGE_NAME || next.npm.startsWith(PACKAGE_NAME + "@")))
-  ) {
+  if (next.npm !== PROVIDER_NPM) {
     next.npm = PROVIDER_NPM;
     changed = true;
   }
 
-  if (!next.api) {
+  if (next.api !== DEFAULT_API) {
     next.api = DEFAULT_API;
     changed = true;
   }
