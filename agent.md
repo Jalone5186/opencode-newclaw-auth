@@ -92,13 +92,11 @@ opencode-newclaw-auth/
 
 | 模型 ID | 家族 | 显示名称 |
 |---------|------|---------|
-| `claude-opus-4-6-20260205` | claude | Claude Opus 4.6 |
-| `claude-sonnet-4-5-20250929` | claude | Claude Sonnet 4.5 |
+| `claude-opus-4-6` | claude | Claude Opus 4.6 |
 | `claude-sonnet-4-6` | claude | Claude Sonnet 4.6 |
-| `claude-haiku-4-5-20251001` | claude | Claude Haiku 4.5 |
-| `gpt-5.3-codex` | codex | GPT-5.3 Codex |
+| `gpt-5.3-codex-high` | codex | GPT-5.3 Codex High |
+| `gpt-5.4` | codex | GPT-5.4 |
 | `gpt-5.2` | codex | GPT-5.2 |
-| `gemini-3-pro` | gemini | Gemini 3 Pro |
 | `gemini-3.1-pro-preview` | gemini | Gemini 3.1 Pro Preview |
 
 模型注册表位于 `lib/models/registry.ts`，是所有配置的单一数据源。

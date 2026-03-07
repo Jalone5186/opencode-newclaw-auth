@@ -50,13 +50,11 @@
 
 | 模型 ID | 显示名称 | 图片输入 | 适合场景 |
 |---------|---------|:-------:|---------|
-| `newclaw/claude-opus-4-6-20260205` | Claude Opus 4.6 | ✅ | 复杂任务、深度思考 |
-| `newclaw/claude-sonnet-4-5-20250929` | Claude Sonnet 4.5 | ✅ | 代码审查、文档查询 |
+| `newclaw/claude-opus-4-6` | Claude Opus 4.6 | ✅ | 复杂任务、深度思考 |
 | `newclaw/claude-sonnet-4-6` | Claude Sonnet 4.6 | ✅ | 日常编程、快速响应 |
-| `newclaw/claude-haiku-4-5-20251001` | Claude Haiku 4.5 | ✅ | 轻量任务、快速回答 |
-| `newclaw/gpt-5.3-codex` | GPT-5.3 Codex | ✅ | 日常编程、代码生成 |
+| `newclaw/gpt-5.3-codex-high` | GPT-5.3 Codex High | ✅ | 日常编程、代码生成 |
+| `newclaw/gpt-5.4` | GPT-5.4 | ✅ | 高级推理、复杂逻辑 |
 | `newclaw/gpt-5.2` | GPT-5.2 | ✅ | 架构设计、逻辑推理 |
-| `newclaw/gemini-3-pro` | Gemini 3 Pro | ✅ | 前端 UI、多模态任务 |
 | `newclaw/gemini-3.1-pro-preview` | Gemini 3.1 Pro Preview | ✅ | 前端 UI、多模态任务 |
 
 ---
@@ -184,7 +182,7 @@ source ~/.zshrc
 
 ```bash
 # 指定模型启动
-opencode --model newclaw/claude-opus-4-6-20260205
+opencode --model newclaw/claude-opus-4-6
 
 # 或启动后在 OpenCode 中切换模型
 opencode
@@ -238,13 +236,13 @@ export NEWCLAW_GEMINI_API_KEY="sk-gemini-key"
 
 ```bash
 # 使用 Claude
-opencode --model newclaw/claude-opus-4-6-20260205
+opencode --model newclaw/claude-opus-4-6
 
 # 使用 Codex
-opencode --model newclaw/gpt-5.3-codex
+opencode --model newclaw/gpt-5.3-codex-high
 
 # 使用 Gemini
-opencode --model newclaw/gemini-3-pro
+opencode --model newclaw/gemini-3.1-pro-preview
 ```
 
 ---

@@ -5,19 +5,8 @@
     "NEWCLAW_API_KEY"
   ],
   "models": {
-    "claude-opus-4-6-20260205": {
+    "claude-opus-4-6": {
       "name": "Claude Opus 4.6",
-      "limit": {
-        "context": 200000,
-        "output": 64000
-      },
-      "modalities": {
-        "input": ["text", "image"],
-        "output": ["text"]
-      }
-    },
-    "claude-sonnet-4-5-20250929": {
-      "name": "Claude Sonnet 4.5",
       "limit": {
         "context": 200000,
         "output": 64000
@@ -38,19 +27,19 @@
         "output": ["text"]
       }
     },
-    "claude-haiku-4-5-20251001": {
-      "name": "Claude Haiku 4.5",
+    "gpt-5.3-codex-high": {
+      "name": "GPT-5.3 Codex High",
       "limit": {
-        "context": 200000,
-        "output": 8192
+        "context": 400000,
+        "output": 128000
       },
       "modalities": {
         "input": ["text", "image"],
         "output": ["text"]
       }
     },
-    "gpt-5.3-codex": {
-      "name": "GPT-5.3 Codex",
+    "gpt-5.4": {
+      "name": "GPT-5.4",
       "limit": {
         "context": 400000,
         "output": 128000
@@ -65,17 +54,6 @@
       "limit": {
         "context": 400000,
         "output": 128000
-      },
-      "modalities": {
-        "input": ["text", "image"],
-        "output": ["text"]
-      }
-    },
-    "gemini-3-pro": {
-      "name": "Gemini 3 Pro",
-      "limit": {
-        "context": 1048576,
-        "output": 65536
       },
       "modalities": {
         "input": ["text", "image"],

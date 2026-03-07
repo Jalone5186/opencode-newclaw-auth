@@ -23,17 +23,15 @@ const DEFAULT_ENV = ["NEWCLAW_API_KEY"];
 const IMAGE_MODALITIES = { input: ["text", "image"], output: ["text"] };
 
 const MODEL_CONFIGS = {
-  "claude-opus-4-6-20260205": { name: "Claude Opus 4.6", modalities: IMAGE_MODALITIES },
-  "claude-sonnet-4-5-20250929": { name: "Claude Sonnet 4.5", modalities: IMAGE_MODALITIES },
+  "claude-opus-4-6": { name: "Claude Opus 4.6", modalities: IMAGE_MODALITIES },
   "claude-sonnet-4-6": { name: "Claude Sonnet 4.6", modalities: IMAGE_MODALITIES },
-  "claude-haiku-4-5-20251001": { name: "Claude Haiku 4.5", modalities: IMAGE_MODALITIES },
-  "gpt-5.3-codex": { name: "GPT-5.3 Codex", modalities: IMAGE_MODALITIES },
+  "gpt-5.3-codex-high": { name: "GPT-5.3 Codex High", modalities: IMAGE_MODALITIES },
+  "gpt-5.4": { name: "GPT-5.4", modalities: IMAGE_MODALITIES },
   "gpt-5.2": { name: "GPT-5.2", modalities: IMAGE_MODALITIES },
-  "gemini-3-pro": { name: "Gemini 3 Pro", modalities: IMAGE_MODALITIES },
   "gemini-3.1-pro-preview": { name: "Gemini 3.1 Pro Preview", modalities: IMAGE_MODALITIES },
 };
 
-const DEFAULT_MODEL = "newclaw/claude-opus-4-6-20260205";
+const DEFAULT_MODEL = "newclaw/claude-opus-4-6";
 
 const ALLOWED_MODEL_IDS = Object.keys(MODEL_CONFIGS);
 

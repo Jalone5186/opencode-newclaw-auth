@@ -38,7 +38,7 @@ cat ~/.config/opencode/opencode.json | grep newclaw
 cat ~/.config/opencode/oh-my-opencode.json | grep newclaw
 
 # 启动
-opencode --model newclaw/claude-opus-4-6-20260205
+opencode --model newclaw/claude-opus-4-6
 ```
 
 ---
@@ -64,27 +64,27 @@ npm install https://github.com/Jalone5186/opencode-newclaw-auth.git
 | 代理 | 模型 | 说明 |
 |------|------|------|
 | sisyphus | claude-opus-4-6 | 主编排代理 |
-| hephaestus | gpt-5.3-codex | 代码构建 |
+| hephaestus | gpt-5.3-codex-high | 代码构建 |
 | oracle | gpt-5.2 | 高级咨询 |
-| librarian | claude-sonnet-4-5 | 文档检索 |
-| explore | claude-haiku-4-5 | 代码搜索 |
+| librarian | claude-sonnet-4-6 | 文档检索 |
+| explore | claude-sonnet-4-6 | 代码搜索 |
 | prometheus | claude-opus-4-6 | 规划 |
 | metis | claude-opus-4-6 | 预规划分析 |
 | momus | gpt-5.2 | 方案审查 |
 | sisyphus-junior | claude-sonnet-4-6 | 子任务执行 |
-| frontend-ui-ux-engineer | gemini-3-pro | 前端开发 |
-| document-writer | gemini-3-pro | 文档编写 |
+| frontend-ui-ux-engineer | gemini-3.1-pro-preview | 前端开发 |
+| document-writer | gemini-3.1-pro-preview | 文档编写 |
 
 ### 任务类别 (Categories)
 
 | 类别 | 模型 | 说明 |
 |------|------|------|
 | visual-engineering | gemini-3.1-pro-preview | 前端/UI |
-| ultrabrain | gpt-5.3-codex | 复杂逻辑 |
-| deep | gpt-5.3-codex | 深度研究 |
+| ultrabrain | gpt-5.3-codex-high | 复杂逻辑 |
+| deep | gpt-5.3-codex-high | 深度研究 |
 | artistry | gemini-3.1-pro-preview | 创意方案 |
-| quick | claude-haiku-4-5 | 快速任务 |
-| writing | gemini-3-pro | 文档写作 |
+| quick | claude-sonnet-4-6 | 快速任务 |
+| writing | gemini-3.1-pro-preview | 文档写作 |
 | business-logic | gpt-5.2 | 业务逻辑 |
 | data-analysis | claude-sonnet-4-6 | 数据分析 |
 

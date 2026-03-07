@@ -2,11 +2,11 @@
   "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/dev/assets/oh-my-opencode.schema.json",
   "agents": {
     "sisyphus": {
-      "model": "newclaw/claude-opus-4-6-20260205",
+      "model": "newclaw/claude-opus-4-6",
       "variant": "max"
     },
     "hephaestus": {
-      "model": "newclaw/gpt-5.3-codex",
+      "model": "newclaw/gpt-5.3-codex-high",
       "variant": "medium"
     },
     "oracle": {
@@ -14,21 +14,21 @@
       "variant": "high"
     },
     "librarian": {
-      "model": "newclaw/claude-sonnet-4-5-20250929"
+      "model": "newclaw/claude-sonnet-4-6"
     },
     "explore": {
-      "model": "newclaw/claude-haiku-4-5-20251001"
+      "model": "newclaw/claude-sonnet-4-6"
     },
     "multimodal-looker": {
-      "model": "newclaw/gpt-5.3-codex",
+      "model": "newclaw/gpt-5.3-codex-high",
       "variant": "medium"
     },
     "prometheus": {
-      "model": "newclaw/claude-opus-4-6-20260205",
+      "model": "newclaw/claude-opus-4-6",
       "variant": "max"
     },
     "metis": {
-      "model": "newclaw/claude-opus-4-6-20260205",
+      "model": "newclaw/claude-opus-4-6",
       "variant": "max"
     },
     "momus": {
@@ -36,28 +36,28 @@
       "variant": "medium"
     },
     "atlas": {
-      "model": "newclaw/claude-sonnet-4-5-20250929"
+      "model": "newclaw/claude-sonnet-4-6"
     },
     "build": {
-      "model": "newclaw/claude-opus-4-6-20260205"
+      "model": "newclaw/claude-opus-4-6"
     },
     "plan": {
-      "model": "newclaw/claude-opus-4-6-20260205"
+      "model": "newclaw/claude-opus-4-6"
     },
     "sisyphus-junior": {
       "model": "newclaw/claude-sonnet-4-6"
     },
     "OpenCode-Builder": {
-      "model": "newclaw/claude-opus-4-6-20260205"
+      "model": "newclaw/claude-opus-4-6"
     },
     "general": {
       "model": "newclaw/claude-sonnet-4-6"
     },
     "frontend-ui-ux-engineer": {
-      "model": "newclaw/gemini-3-pro"
+      "model": "newclaw/gemini-3.1-pro-preview"
     },
     "document-writer": {
-      "model": "newclaw/gemini-3-pro"
+      "model": "newclaw/gemini-3.1-pro-preview"
     }
   },
   "categories": {
@@ -66,11 +66,11 @@
       "variant": "high"
     },
     "ultrabrain": {
-      "model": "newclaw/gpt-5.3-codex",
+      "model": "newclaw/gpt-5.3-codex-high",
       "variant": "high"
     },
     "deep": {
-      "model": "newclaw/gpt-5.3-codex",
+      "model": "newclaw/gpt-5.3-codex-high",
       "variant": "medium"
     },
     "artistry": {
@@ -78,19 +78,19 @@
       "variant": "high"
     },
     "quick": {
-      "model": "newclaw/claude-haiku-4-5-20251001"
+      "model": "newclaw/claude-sonnet-4-6"
     },
     "unspecified-low": {
-      "model": "newclaw/claude-sonnet-4-5-20250929"
+      "model": "newclaw/claude-sonnet-4-6"
     },
     "unspecified-high": {
-      "model": "newclaw/claude-sonnet-4-5-20250929"
+      "model": "newclaw/claude-sonnet-4-6"
     },
     "writing": {
-      "model": "newclaw/gemini-3-pro"
+      "model": "newclaw/gemini-3.1-pro-preview"
     },
     "visual": {
-      "model": "newclaw/gemini-3-pro"
+      "model": "newclaw/gemini-3.1-pro-preview"
     },
     "business-logic": {
       "model": "newclaw/gpt-5.2"

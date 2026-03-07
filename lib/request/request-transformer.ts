@@ -9,19 +9,19 @@ import { logDebug } from "../logger"
 import type { ConfigOptions, InputItem, ReasoningConfig, RequestBody } from "../types"
 
 export function normalizeModel(model: string | undefined): string {
-  if (!model) return "gpt-5.3-codex"
+  if (!model) return "gpt-5.3-codex-high"
 
   const modelId = model.includes("/") ? model.split("/").pop()! : model
   const normalized = modelId.toLowerCase()
 
   if (normalized.includes("gpt-5.3-codex") || normalized.includes("gpt 5.3 codex")) {
-    return "gpt-5.3-codex"
+    return "gpt-5.3-codex-high"
   }
   if (normalized.includes("gpt-5.2") || normalized.includes("gpt 5.2")) {
     return "gpt-5.2"
   }
   if (normalized.includes("codex")) {
-    return "gpt-5.3-codex"
+    return "gpt-5.3-codex-high"
   }
 
   return modelId

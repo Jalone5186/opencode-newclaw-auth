@@ -40,31 +40,21 @@ export const PROVIDER_ID = "newclaw"
  * ============================================
  *
  * Default supported models:
- * - Claude Code (Anthropic): claude-sonnet-4-5, claude-opus-4-6
- * - Codex (OpenAI): gpt-5.3-codex, gpt-5.2
- * - Gemini (Google): gemini-3-pro, gemini-3.1-pro-preview
+ * - Claude (Anthropic): claude-opus-4-6, claude-sonnet-4-6
+ * - Codex (OpenAI): gpt-5.3-codex-high, gpt-5.4, gpt-5.2
+ * - Gemini (Google): gemini-3.1-pro-preview
  */
 export const MODELS: ModelDefinition[] = [
-  // ===== Claude Code Models =====
+  // ===== Claude Models =====
   {
-    id: "claude-opus-4-6-20260205",
+    id: "claude-opus-4-6",
     family: "claude",
     displayName: "Claude Opus 4.6",
     version: "4.6",
     limit: { context: 200000, output: 64000 },
     modalities: { input: ["text", "image"], output: ["text"] },
     reasoning: "full",
-    aliases: ["claude-opus-4-6", "claude opus 4.6", "opus"],
-  },
-  {
-    id: "claude-sonnet-4-5-20250929",
-    family: "claude",
-    displayName: "Claude Sonnet 4.5",
-    version: "4.5",
-    limit: { context: 200000, output: 64000 },
-    modalities: { input: ["text", "image"], output: ["text"] },
-    reasoning: "full",
-    aliases: ["claude-sonnet-4-5", "claude sonnet 4.5", "sonnet"],
+    aliases: ["claude opus 4.6", "opus"],
   },
   {
     id: "claude-sonnet-4-6",
@@ -74,29 +64,29 @@ export const MODELS: ModelDefinition[] = [
     limit: { context: 200000, output: 64000 },
     modalities: { input: ["text", "image"], output: ["text"] },
     reasoning: "full",
-    aliases: ["claude-sonnet-4.6"],
-  },
-  {
-    id: "claude-haiku-4-5-20251001",
-    family: "claude",
-    displayName: "Claude Haiku 4.5",
-    version: "4.5",
-    limit: { context: 200000, output: 8192 },
-    modalities: { input: ["text", "image"], output: ["text"] },
-    reasoning: "basic",
-    aliases: ["claude-haiku-4-5", "haiku"],
+    aliases: ["claude-sonnet-4.6", "sonnet"],
   },
 
   // ===== Codex / GPT Models =====
   {
-    id: "gpt-5.3-codex",
+    id: "gpt-5.3-codex-high",
     family: "codex",
-    displayName: "GPT-5.3 Codex",
+    displayName: "GPT-5.3 Codex High",
     version: "5.3",
     limit: { context: 400000, output: 128000 },
     modalities: { input: ["text", "image"], output: ["text"] },
     reasoning: "xhigh",
-    aliases: ["gpt-5.3-codex", "gpt 5.3 codex", "codex"],
+    aliases: ["gpt 5.3 codex", "codex"],
+  },
+  {
+    id: "gpt-5.4",
+    family: "codex",
+    displayName: "GPT-5.4",
+    version: "5.4",
+    limit: { context: 400000, output: 128000 },
+    modalities: { input: ["text", "image"], output: ["text"] },
+    reasoning: "xhigh",
+    aliases: ["gpt 5.4"],
   },
   {
     id: "gpt-5.2",
@@ -106,20 +96,10 @@ export const MODELS: ModelDefinition[] = [
     limit: { context: 400000, output: 128000 },
     modalities: { input: ["text", "image"], output: ["text"] },
     reasoning: "xhigh",
-    aliases: ["gpt-5.2", "gpt 5.2"],
+    aliases: ["gpt 5.2"],
   },
 
   // ===== Gemini Models =====
-  {
-    id: "gemini-3-pro",
-    family: "gemini",
-    displayName: "Gemini 3 Pro",
-    version: "3.0",
-    limit: { context: 1048576, output: 65536 },
-    modalities: { input: ["text", "image"], output: ["text"] },
-    reasoning: "full",
-    aliases: ["gemini-3-pro", "gemini 3 pro", "gemini"],
-  },
   {
     id: "gemini-3.1-pro-preview",
     family: "gemini",
@@ -128,7 +108,7 @@ export const MODELS: ModelDefinition[] = [
     limit: { context: 1048576, output: 65536 },
     modalities: { input: ["text", "image"], output: ["text"] },
     reasoning: "full",
-    aliases: ["gemini-3.1-pro", "gemini 3.1 pro"],
+    aliases: ["gemini-3.1-pro", "gemini 3.1 pro", "gemini"],
   },
 ]
 
