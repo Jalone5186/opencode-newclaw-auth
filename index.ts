@@ -42,7 +42,7 @@ import { syncOmoConfig } from "./lib/hooks/omo-config-sync"
 
 const CODEX_MODEL_PREFIXES = ["gpt-", "codex"]
 const PACKAGE_NAME = "opencode-newclaw-auth"
-const PLUGIN_ENTRY = import.meta.url
+const PLUGIN_ENTRY = PACKAGE_NAME
 const PROVIDER_NPM = `${PACKAGE_NAME}/provider`
 
 const DEFAULT_OUTPUT_TOKEN_MAX = 32000
@@ -105,8 +105,16 @@ const isPackageEntry = (value: string) => value === PACKAGE_NAME || value.starts
 
 const ensurePluginEntry = (list: unknown) => {
   if (!Array.isArray(list)) return [PLUGIN_ENTRY]
-  const hasPlugin = list.some((entry) => typeof entry === "string" && (entry === PLUGIN_ENTRY || isPackageEntry(entry)))
-  return hasPlugin ? list : [...list, PLUGIN_ENTRY]
+  // Remove stale file:// entries that contain PACKAGE_NAME
+  const filtered = list.filter(
+    (entry) => !(typeof entry === "string" && entry.startsWith("file://") && entry.includes(PACKAGE_NAME)),
+  )
+  const hasPlugin = filtered.some((entry) => typeof entry === "string" && (entry === PLUGIN_ENTRY || isPackageEntry(entry)))
+  if (hasPlugin) {
+    // Return original list reference if no stale entries were removed and plugin already present
+    return filtered.length === list.length ? list : filtered
+  }
+  return [...filtered, PLUGIN_ENTRY]
 }
 
 const buildStandardProviderConfig = () => ({
@@ -163,7 +171,10 @@ const ensureConfigFile = async () => {
 
     await mkdir(configDir, { recursive: true })
     await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf-8")
-  })()
+  })().catch((err) => {
+    ensureConfigPromise = undefined
+    throw err
+  })
   return ensureConfigPromise
 }
 

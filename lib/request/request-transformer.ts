@@ -14,7 +14,7 @@ export function normalizeModel(model: string | undefined): string {
   const modelId = model.includes("/") ? model.split("/").pop()! : model
   const normalized = modelId.toLowerCase()
 
-  if (normalized.includes("gpt-5.3-codex") || normalized.includes("gpt 5.3 codex")) {
+  if (normalized.includes("gpt-5.3-codex-high") || normalized.includes("gpt 5.3 codex high")) {
     return "gpt-5.3-codex-high"
   }
   if (normalized.includes("gpt-5.2") || normalized.includes("gpt 5.2")) {
