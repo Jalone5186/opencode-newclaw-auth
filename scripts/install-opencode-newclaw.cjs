@@ -41,9 +41,10 @@ const configDir = path.join(configRoot, "opencode");
 const configJsoncPath = path.join(configDir, "opencode.jsonc");
 const configPath = path.join(configDir, "opencode.json");
 
-// Plugin entry and provider npm both use package name (portable across machines)
+// Plugin entry uses package name; provider npm uses file:// absolute path
+// so OpenCode's Go binary can load it directly without Node.js module resolution
 var PLUGIN_ENTRY = PACKAGE_NAME;
-var PROVIDER_NPM = PACKAGE_NAME + "/provider";
+var PROVIDER_NPM = "file://" + path.resolve(__dirname, "..", "dist", "provider.js");
 
 function stripJsoncComments(text) {
   // Remove single-line comments and multi-line comments
