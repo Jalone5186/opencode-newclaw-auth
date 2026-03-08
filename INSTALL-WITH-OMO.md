@@ -6,7 +6,16 @@ oh-my-opencode 提供多模型编排、并行后台代理、LSP/AST 工具等高
 
 ---
 
-## 一键安装（推荐）
+## 前置条件
+
+- 已安装最新版 OpenCode（建议插件系统版本不低于 `@opencode-ai/plugin@1.0.150`）
+- 已安装 [Node.js](https://nodejs.org/)（用于执行 postinstall 脚本）
+- 已安装 [Bun](https://bun.sh/)（如需在本地跑 build/test）
+- 已准备 NewClaw API Key
+
+---
+
+## 第一步：一键安装（推荐）
 
 ```bash
 # 同时安装两个插件
@@ -16,29 +25,68 @@ npm install https://github.com/Jalone5186/opencode-newclaw-auth.git oh-my-openco
 bun add https://github.com/Jalone5186/opencode-newclaw-auth.git oh-my-opencode
 ```
 
+以上安装命令可在任意目录执行。
+
 安装完成后会自动：
-1. 将 NewClaw provider 配置写入 `~/.config/opencode/opencode.json`
+1. 将 NewClaw provider 配置写入 `~/.config/opencode/opencode.json`（或 `~/.config/opencode/opencode.jsonc`）
 2. 将 NewClaw 模型分配写入 `~/.config/opencode/oh-my-opencode.json`
 
-## 配置 API Key
+> 使用 `npm install` 时会自动触发 postinstall；如果你使用 `bun add` 后没有看到配置更新，请手动执行：
+> `node node_modules/opencode-newclaw-auth/scripts/install-opencode-newclaw.cjs`
+
+## 第二步：重启 OpenCode（关键）
+
+如果你已经在运行 OpenCode，请先重启让新 provider 生效：
+
+```bash
+# 在当前 opencode 终端按 Ctrl + C 退出后重新启动
+opencode
+```
+
+## 第三步：配置 API Key
+
+**方式 A：通过 OpenCode 认证（推荐）**
+
+```bash
+opencode auth login
+```
+
+运行后选择：`Other` -> provider name 输入 `newclaw` -> 粘贴 API Key。
+
+**方式 B：通过环境变量**
 
 ```bash
 # 在 ~/.zshrc 或 ~/.bashrc 中添加
 export NEWCLAW_API_KEY="sk-your-newclaw-key"
-source ~/.zshrc
+
+# 重新加载 shell 配置
+source ~/.zshrc  # 或 source ~/.bashrc
 ```
 
-## 验证安装
+## 第四步：验证安装
 
 ```bash
-# 检查 OpenCode 配置
-cat ~/.config/opencode/opencode.json | grep newclaw
+# 检查 OpenCode 配置（兼容 json/jsonc）
+grep -n "newclaw" ~/.config/opencode/opencode.json ~/.config/opencode/opencode.jsonc 2>/dev/null
 
 # 检查 OMO 配置（应该看到 newclaw/ 前缀的模型）
-cat ~/.config/opencode/oh-my-opencode.json | grep newclaw
+grep -n "newclaw" ~/.config/opencode/oh-my-opencode.json 2>/dev/null
 
-# 启动
+# 启动测试
 opencode --model newclaw/claude-opus-4-6
+```
+
+---
+
+## （可选）在另一台电脑做开发侧回归
+
+```bash
+git clone https://github.com/Jalone5186/opencode-newclaw-auth.git
+cd opencode-newclaw-auth
+bun install
+bun run typecheck
+bun run test
+bun run build
 ```
 
 ---

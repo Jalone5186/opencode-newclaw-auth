@@ -110,8 +110,9 @@ export NEWCLAW_GEMINI_API_KEY="sk-gemini-key"      # Gemini 专用 Key
 
 ### 前置条件
 
-- 已安装 [OpenCode](https://opencode.ai/)
-- 已安装 [Bun](https://bun.sh/) 或 [Node.js](https://nodejs.org/)
+- 已安装最新版 [OpenCode](https://opencode.ai/)（建议插件系统版本不低于 `@opencode-ai/plugin@1.0.150`）
+- 已安装 [Node.js](https://nodejs.org/)（用于执行 postinstall 脚本）
+- 已安装 [Bun](https://bun.sh/)（如需在本地运行 build/typecheck/test）
 - 已注册 [NewClaw](https://newclaw.ai/) 账号并获取 API Key
 
 ### 第一步：安装插件
@@ -138,7 +139,11 @@ npm install https://github.com/Jalone5186/opencode-newclaw-auth.git
 bun add https://github.com/Jalone5186/opencode-newclaw-auth.git
 ```
 
-安装完成后，`postinstall` 脚本会自动将插件配置写入 `~/.config/opencode/opencode.json`。
+以上安装命令可在任意目录执行。
+
+安装完成后，`postinstall` 脚本会将插件配置写入 `~/.config/opencode/opencode.json`（或 `~/.config/opencode/opencode.jsonc`）。
+
+> 使用 `npm install` 时会自动触发 postinstall；如果你使用 `bun add` 后没有看到配置更新，请手动执行下方 FAQ 里的脚本命令。
 
 > **⚠️ 安装报错 `Permission denied (publickey)` ？**
 > 
@@ -148,7 +153,16 @@ bun add https://github.com/Jalone5186/opencode-newclaw-auth.git
 > ```
 > 然后重新执行安装命令即可。
 
-### 第二步：配置 API Key
+### 第二步：重启 OpenCode（关键）
+
+如果你已经在运行 OpenCode，请先重启让新 provider 生效：
+
+```bash
+# 在当前 opencode 终端按 Ctrl + C 退出后重新启动
+opencode
+```
+
+### 第三步：配置 API Key
 
 **方式 A：通过 OpenCode 认证（推荐）**
 
@@ -178,7 +192,7 @@ export NEWCLAW_API_KEY="sk-your-newclaw-key"
 source ~/.zshrc
 ```
 
-### 第三步：启动使用
+### 第四步：启动使用
 
 ```bash
 # 指定模型启动
@@ -191,10 +205,13 @@ opencode
 ### 验证安装是否成功
 
 ```bash
-# 检查配置文件是否已更新
-cat ~/.config/opencode/opencode.json | grep newclaw
+# 检查 OpenCode 配置（兼容 json/jsonc）
+grep -n "newclaw" ~/.config/opencode/opencode.json ~/.config/opencode/opencode.jsonc 2>/dev/null
 
-# 应该能看到 "newclaw" 相关的 provider 配置
+# 如果安装了 oh-my-opencode，再检查模型分配配置
+grep -n "newclaw" ~/.config/opencode/oh-my-opencode.json 2>/dev/null
+
+# 预期输出至少包含：provider 中的 "newclaw" 与模型前缀 "newclaw/"
 ```
 
 ---
@@ -207,7 +224,7 @@ cat ~/.config/opencode/opencode.json | grep newclaw
 
 **Q: 安装后 opencode.json 没有更新**
 
-手动运行 postinstall 脚本：
+手动运行 postinstall 脚本（在你执行 `npm install` / `bun add` 的同一目录）：
 ```bash
 node node_modules/opencode-newclaw-auth/scripts/install-opencode-newclaw.cjs
 ```
@@ -278,8 +295,9 @@ opencode --model newclaw/gemini-3.1-pro-preview
 git clone https://github.com/Jalone5186/opencode-newclaw-auth.git
 cd opencode-newclaw-auth
 bun install
-bun run build
 bun run typecheck
+bun run test
+bun run build
 ```
 
 ---
