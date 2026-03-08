@@ -55,14 +55,14 @@ export function createNewclaw(options: NewclawProviderSettings = {}): NewclawPro
 
   const anthropic = createAnthropic({
     apiKey: options.anthropic?.apiKey ?? options.apiKey,
-    baseURL: options.anthropic?.baseURL,
+    baseURL: options.anthropic?.baseURL ?? options.baseURL,
     headers: options.anthropic?.headers ?? options.headers,
     fetch: options.fetch,
   })
 
   const google = createGoogleGenerativeAI({
     apiKey: options.google?.apiKey ?? options.apiKey ?? "placeholder-key-replaced-by-fetch-hook",
-    baseURL: options.google?.baseURL,
+    baseURL: options.google?.baseURL ?? options.baseURL,
     headers: options.google?.headers ?? options.headers,
     fetch: options.fetch,
   })
