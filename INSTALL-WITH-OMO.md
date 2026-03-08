@@ -8,7 +8,7 @@ oh-my-opencode 提供多模型编排、并行后台代理、LSP/AST 工具等高
 
 ## 前置条件
 
-- 已安装最新版 OpenCode（建议插件系统版本不低于 `@opencode-ai/plugin@1.0.150`）
+- 已安装最新版 OpenCode：`npm install -g opencode-ai`（建议插件系统版本不低于 `@opencode-ai/plugin@1.0.150`）
 - 已安装 [Node.js](https://nodejs.org/)（用于执行 postinstall 脚本）
 - 已安装 [Bun](https://bun.sh/)（如需在本地跑 build/test）
 - 已准备 NewClaw API Key
@@ -17,15 +17,19 @@ oh-my-opencode 提供多模型编排、并行后台代理、LSP/AST 工具等高
 
 ## 第一步：一键安装（推荐）
 
+⚠️ **必须在 OpenCode 配置目录下执行安装命令**，插件才能被正确加载。
+
 ```bash
+# 先启动一次 OpenCode 让它初始化配置目录（如果 ~/.config/opencode 已存在则跳过）
+opencode
+# 启动后 Ctrl+C 退出
+
+# 进入 OpenCode 配置目录
+cd ~/.config/opencode
+
 # 同时安装两个插件
 npm install https://github.com/Jalone5186/opencode-newclaw-auth.git oh-my-opencode
-
-# 或使用 bun
-bun add https://github.com/Jalone5186/opencode-newclaw-auth.git oh-my-opencode
 ```
-
-以上安装命令可在任意目录执行。
 
 安装完成后会自动：
 1. 将 NewClaw provider 配置写入 `~/.config/opencode/opencode.json`（或 `~/.config/opencode/opencode.jsonc`）
@@ -96,9 +100,9 @@ bun run build
 如果你只需要 NewClaw 认证，不需要 oh-my-opencode 的增强功能：
 
 ```bash
+cd ~/.config/opencode
 npm install https://github.com/Jalone5186/opencode-newclaw-auth.git
 ```
-
 详见 [README.md](./README.md)。
 
 ---

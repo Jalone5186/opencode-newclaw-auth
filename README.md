@@ -110,12 +110,23 @@ export NEWCLAW_GEMINI_API_KEY="sk-gemini-key"      # Gemini 专用 Key
 
 ### 前置条件
 
-- 已安装最新版 [OpenCode](https://opencode.ai/)（建议插件系统版本不低于 `@opencode-ai/plugin@1.0.150`）
+- 已安装最新版 [OpenCode](https://opencode.ai/)：`npm install -g opencode-ai`（建议插件系统版本不低于 `@opencode-ai/plugin@1.0.150`）
 - 已安装 [Node.js](https://nodejs.org/)（用于执行 postinstall 脚本）
 - 已安装 [Bun](https://bun.sh/)（如需在本地运行 build/typecheck/test）
 - 已注册 [NewClaw](https://newclaw.ai/) 账号并获取 API Key
 
 ### 第一步：安装插件
+
+⚠️ **插件必须安装到 OpenCode 配置目录 `~/.config/opencode/` 下**，否则 OpenCode 无法加载。
+
+```bash
+# 先启动一次 OpenCode 让它初始化配置目录（如果 ~/.config/opencode 已存在则跳过）
+opencode
+# 启动后 Ctrl+C 退出
+
+# 进入 OpenCode 配置目录
+cd ~/.config/opencode
+```
 
 **🚀 一键安装 NewClaw + oh-my-opencode（推荐）**
 
@@ -123,9 +134,6 @@ export NEWCLAW_GEMINI_API_KEY="sk-gemini-key"      # Gemini 专用 Key
 
 ```bash
 npm install https://github.com/Jalone5186/opencode-newclaw-auth.git oh-my-opencode
-
-# 或使用 bun
-bun add https://github.com/Jalone5186/opencode-newclaw-auth.git oh-my-opencode
 ```
 
 详见 [INSTALL-WITH-OMO.md](./INSTALL-WITH-OMO.md)。
@@ -134,14 +142,9 @@ bun add https://github.com/Jalone5186/opencode-newclaw-auth.git oh-my-opencode
 
 ```bash
 npm install https://github.com/Jalone5186/opencode-newclaw-auth.git
-
-# 或使用 bun
-bun add https://github.com/Jalone5186/opencode-newclaw-auth.git
 ```
 
-以上安装命令可在任意目录执行。
-
-安装完成后，`postinstall` 脚本会将插件配置写入 `~/.config/opencode/opencode.json`（或 `~/.config/opencode/opencode.jsonc`）。
+安装完成后，`postinstall` 脚本会自动将插件配置写入 `~/.config/opencode/opencode.json`（或 `~/.config/opencode/opencode.jsonc`）。
 
 > 使用 `npm install` 时会自动触发 postinstall；如果你使用 `bun add` 后没有看到配置更新，请手动执行下方 FAQ 里的脚本命令。
 
