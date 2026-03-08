@@ -6,11 +6,11 @@
       "variant": "max"
     },
     "hephaestus": {
-      "model": "newclaw/gpt-5.3-codex-high",
+      "model": "newclaw/gpt-5-codex-high",
       "variant": "medium"
     },
     "oracle": {
-      "model": "newclaw/gpt-5.2",
+      "model": "newclaw/deepseek-r1",
       "variant": "high"
     },
     "librarian": {
@@ -20,7 +20,7 @@
       "model": "newclaw/claude-sonnet-4-6"
     },
     "multimodal-looker": {
-      "model": "newclaw/gpt-5.3-codex-high",
+      "model": "newclaw/gpt-5-codex-high",
       "variant": "medium"
     },
     "prometheus": {
@@ -32,7 +32,7 @@
       "variant": "max"
     },
     "momus": {
-      "model": "newclaw/gpt-5.2",
+      "model": "newclaw/gpt-5.4",
       "variant": "medium"
     },
     "atlas": {
@@ -54,31 +54,31 @@
       "model": "newclaw/claude-sonnet-4-6"
     },
     "frontend-ui-ux-engineer": {
-      "model": "newclaw/gemini-3.1-pro-preview"
+      "model": "newclaw/claude-sonnet-4-6"
     },
     "document-writer": {
-      "model": "newclaw/gemini-3.1-pro-preview"
+      "model": "newclaw/claude-haiku-4-5-20251001"
     }
   },
   "categories": {
     "visual-engineering": {
-      "model": "newclaw/gemini-3.1-pro-preview",
+      "model": "newclaw/claude-sonnet-4-6",
       "variant": "high"
     },
     "ultrabrain": {
-      "model": "newclaw/gpt-5.3-codex-high",
+      "model": "newclaw/deepseek-r1",
       "variant": "high"
     },
     "deep": {
-      "model": "newclaw/gpt-5.3-codex-high",
+      "model": "newclaw/gpt-5-codex-high",
       "variant": "medium"
     },
     "artistry": {
-      "model": "newclaw/gemini-3.1-pro-preview",
+      "model": "newclaw/claude-opus-4-6",
       "variant": "high"
     },
     "quick": {
-      "model": "newclaw/claude-sonnet-4-6"
+      "model": "newclaw/claude-haiku-4-5-20251001"
     },
     "unspecified-low": {
       "model": "newclaw/claude-sonnet-4-6"
@@ -87,13 +87,13 @@
       "model": "newclaw/claude-sonnet-4-6"
     },
     "writing": {
-      "model": "newclaw/gemini-3.1-pro-preview"
+      "model": "newclaw/claude-sonnet-4-6"
     },
     "visual": {
-      "model": "newclaw/gemini-3.1-pro-preview"
+      "model": "newclaw/claude-sonnet-4-6"
     },
     "business-logic": {
-      "model": "newclaw/gpt-5.2"
+      "model": "newclaw/gpt-5.4"
     },
     "data-analysis": {
       "model": "newclaw/claude-sonnet-4-6"

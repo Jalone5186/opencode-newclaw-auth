@@ -25,10 +25,14 @@ const IMAGE_MODALITIES = { input: ["text", "image"], output: ["text"] };
 const MODEL_CONFIGS = {
   "claude-opus-4-6": { name: "Claude Opus 4.6", modalities: IMAGE_MODALITIES },
   "claude-sonnet-4-6": { name: "Claude Sonnet 4.6", modalities: IMAGE_MODALITIES },
-  "gpt-5.3-codex-high": { name: "GPT-5.3 Codex High", modalities: IMAGE_MODALITIES },
+  "claude-haiku-4-5-20251001": { name: "Claude Haiku 4.5", modalities: IMAGE_MODALITIES },
+  "gpt-5-codex-high": { name: "GPT-5 Codex High", modalities: IMAGE_MODALITIES },
   "gpt-5.4": { name: "GPT-5.4", modalities: IMAGE_MODALITIES },
   "gpt-5.2": { name: "GPT-5.2", modalities: IMAGE_MODALITIES },
-  "gemini-3.1-pro-preview": { name: "Gemini 3.1 Pro Preview", modalities: IMAGE_MODALITIES },
+  "o4-mini": { name: "O4 Mini", modalities: IMAGE_MODALITIES },
+  "deepseek-r1": { name: "DeepSeek R1", modalities: { input: ["text"], output: ["text"] } },
+  "deepseek-v3": { name: "DeepSeek V3", modalities: { input: ["text"], output: ["text"] } },
+  "grok-4": { name: "Grok 4", modalities: IMAGE_MODALITIES },
 };
 
 const DEFAULT_MODEL = "newclaw/claude-opus-4-6";
@@ -201,13 +205,141 @@ async function writeOmoConfig() {
   }
 }
 
+
+var CODING_MODEL_PREFIXES = ["claude-", "gpt-", "o1-", "o3-", "o4-", "deepseek-", "grok-", "codex-"];
+var SKIP_PATTERNS = [/^gpt-3/, /^gpt-4(?!o)/i, /embedding/i, /whisper/i, /tts/i, /dall-e/i, /moderation/i, /realtime/i, /audio/i];
+var CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+var API_TIMEOUT_MS = 10000;
+
+function getCachePath() {
+  var cacheRoot = process.env.XDG_CACHE_HOME || path.join(home, ".cache");
+  return path.join(cacheRoot, "opencode", "newclaw-models-cache.json");
+}
+
+function isCodingModel(id) {
+  var lower = id.toLowerCase();
+  var matches = CODING_MODEL_PREFIXES.some(function (p) { return lower.startsWith(p); });
+  if (!matches) return false;
+  return !SKIP_PATTERNS.some(function (p) { return p.test(lower); });
+}
+
+function modelIdToDisplayName(id) {
+  return id.split("-").map(function (part) {
+    if (/^\d/.test(part)) return part;
+    return part.charAt(0).toUpperCase() + part.slice(1);
+  }).join(" ")
+    .replace(/^Gpt /, "GPT-")
+    .replace(/^O(\d)/, "O$1")
+    .replace(/^Deepseek /, "DeepSeek ")
+    .replace(/^Codex /, "Codex ");
+}
+
+function detectModalities(id) {
+  if (id.toLowerCase().startsWith("deepseek-")) return { input: ["text"], output: ["text"] };
+  return { input: ["text", "image"], output: ["text"] };
+}
+
+function detectLimits(id) {
+  var lower = id.toLowerCase();
+  if (lower.includes("codex") || lower.startsWith("gpt-5")) return { context: 400000, output: 128000 };
+  if (lower.startsWith("claude-")) {
+    if (lower.includes("haiku")) return { context: 200000, output: 8192 };
+    return { context: 200000, output: 64000 };
+  }
+  if (lower.startsWith("deepseek-")) return { context: 128000, output: 64000 };
+  if (/^o[134]-/.test(lower) || lower.startsWith("grok-")) return { context: 200000, output: 100000 };
+  return { context: 128000, output: 32000 };
+}
+
+async function syncModelsFromApi() {
+  try {
+    var cachePath = getCachePath();
+    var cache;
+    try {
+      cache = JSON.parse(await readFile(cachePath, "utf-8"));
+    } catch { cache = null; }
+
+    if (cache && cache.timestamp && Date.now() - cache.timestamp < CACHE_TTL_MS) {
+      console.log("[" + PACKAGE_NAME + "] Model cache is fresh, skipping API fetch");
+      return;
+    }
+
+    var apiKey = process.env.NEWCLAW_API_KEY;
+    if (!apiKey) {
+      try {
+        var authPath = path.join(configDir, "auth.json");
+        var authData = JSON.parse(await readFile(authPath, "utf-8"));
+        var newclawAuth = authData && (authData[PROVIDER_ID] || authData.newclaw);
+        if (newclawAuth && newclawAuth.key) apiKey = newclawAuth.key.trim();
+      } catch { /* no auth available */ }
+    }
+
+    if (!apiKey) {
+      console.log("[" + PACKAGE_NAME + "] No API key found, skipping model sync");
+      return;
+    }
+
+    var https = require("node:https");
+    var data = await new Promise(function (resolve) {
+      var req = https.get("https://newclaw.ai/v1/models", {
+        headers: { "Authorization": "Bearer " + apiKey },
+        timeout: API_TIMEOUT_MS,
+      }, function (res) {
+        if (res.statusCode !== 200) { resolve(null); return; }
+        var chunks = [];
+        res.on("data", function (c) { chunks.push(c); });
+        res.on("end", function () {
+          try { resolve(JSON.parse(Buffer.concat(chunks).toString())); }
+          catch { resolve(null); }
+        });
+      });
+      req.on("error", function () { resolve(null); });
+      req.on("timeout", function () { req.destroy(); resolve(null); });
+    });
+
+    if (!data || !Array.isArray(data.data)) {
+      console.log("[" + PACKAGE_NAME + "] Could not fetch models from API");
+      return;
+    }
+
+    await mkdir(path.dirname(cachePath), { recursive: true });
+    await writeFile(cachePath, JSON.stringify({ timestamp: Date.now(), models: data.data }, null, 2), "utf-8");
+
+    var newModels = {};
+    data.data.forEach(function (m) {
+      if (!isCodingModel(m.id)) return;
+      newModels[m.id] = {
+        name: modelIdToDisplayName(m.id),
+        limit: detectLimits(m.id),
+        modalities: detectModalities(m.id),
+      };
+    });
+
+    var modelCount = Object.keys(newModels).length;
+    if (modelCount === 0) return;
+
+    var activeConfigPath2 = existsSync(configJsoncPath) ? configJsoncPath : configPath;
+    var config2 = (await readJson(activeConfigPath2)) || {};
+    var prov = (config2.provider && config2.provider[PROVIDER_ID]) || {};
+    var existing = prov.models || {};
+
+    var merged = Object.assign({}, newModels, existing);
+    prov.models = merged;
+    if (!config2.provider) config2.provider = {};
+    config2.provider[PROVIDER_ID] = prov;
+
+    await writeFile(activeConfigPath2, JSON.stringify(config2, null, 2) + "\n", "utf-8");
+    console.log("[" + PACKAGE_NAME + "] Synced " + modelCount + " models from NewClaw API");
+  } catch (e) {
+    console.warn("[" + PACKAGE_NAME + "] Model sync failed (non-fatal): " + (e instanceof Error ? e.message : e));
+  }
+}
 async function main() {
   var activeConfigPath = existsSync(configJsoncPath) ? configJsoncPath : configPath;
   var config = (await readJson(activeConfigPath)) || {};
 
   var changed = applyProviderConfig(config);
 
-  // If oh-my-opencode is installed, register it as a plugin too
   var omoInstalled = await checkOmoInstalled();
   if (omoInstalled) {
     var plugins = Array.isArray(config.plugin) ? config.plugin : [];
@@ -227,7 +359,8 @@ async function main() {
     console.log("[" + PACKAGE_NAME + "] Updated OpenCode config at " + activeConfigPath);
   }
 
-  // Sync OMO model assignments config
+  await syncModelsFromApi();
+
   if (omoInstalled) {
     await writeOmoConfig();
   }

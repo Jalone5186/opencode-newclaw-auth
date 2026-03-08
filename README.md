@@ -4,7 +4,7 @@
 
 **OpenCode 的 NewClaw 认证插件**
 
-一个 API Key → 多模型可用（Claude Code、Codex、Gemini）
+一个 API Key → 多模型可用（Claude Code、Codex、DeepSeek 等）
 
 支持按模型厂商配置不同 Key，也支持一键统一配置
 
@@ -21,7 +21,7 @@
 │                     opencode-newclaw-auth                        │
 ├─────────────────────────────────────────────────────────────────┤
 │  index.ts          插件入口, 认证钩子, 配置注入, fetch拦截器     │
-│  provider.ts       多供应商工厂 (OpenAI/Claude/Gemini)           │
+│  provider.ts       多供应商工厂 (OpenAI/Claude/DeepSeek等)       │
 ├─────────────────────────────────────────────────────────────────┤
 │  lib/              核心库模块                                     │
 │  ├── constants.ts      全局常量 & 请求头名称                     │
@@ -39,9 +39,10 @@
 
 ```
 用户请求 → OpenCode → 插件认证钩子 → 按模型路由:
-  ├── gpt-*/codex-* → NewClaw Codex API (转换 + 请求头)
-  ├── claude-*      → NewClaw Anthropic API (URL重写 + 工具前缀)
-  └── gemini-*      → NewClaw Gemini API (请求头 + URL构建)
+  ├── gpt-*/codex-*/o4-* → NewClaw Codex API
+  ├── claude-*           → NewClaw Anthropic API
+  ├── deepseek-*         → NewClaw DeepSeek API
+  └── grok-*             → NewClaw Grok API
 ```
 
 ---
@@ -52,232 +53,137 @@
 |---------|---------|:-------:|---------|
 | `newclaw/claude-opus-4-6` | Claude Opus 4.6 | ✅ | 复杂任务、深度思考 |
 | `newclaw/claude-sonnet-4-6` | Claude Sonnet 4.6 | ✅ | 日常编程、快速响应 |
-| `newclaw/gpt-5.3-codex-high` | GPT-5.3 Codex High | ✅ | 日常编程、代码生成 |
+| `newclaw/claude-haiku-4-5-20251001` | Claude Haiku 4.5 | ✅ | 轻量任务、低成本 |
+| `newclaw/gpt-5-codex-high` | GPT-5 Codex High | ✅ | 代码生成、高推理 |
 | `newclaw/gpt-5.4` | GPT-5.4 | ✅ | 高级推理、复杂逻辑 |
 | `newclaw/gpt-5.2` | GPT-5.2 | ✅ | 架构设计、逻辑推理 |
-| `newclaw/gemini-3.1-pro-preview` | Gemini 3.1 Pro Preview | ✅ | 前端 UI、多模态任务 |
+| `newclaw/o4-mini` | O4 Mini | ✅ | 快速推理、低成本 |
+| `newclaw/deepseek-r1` | DeepSeek R1 | ❌ | 数学推理、深度思考 |
+| `newclaw/deepseek-v3` | DeepSeek V3 | ❌ | 通用编程 |
+| `newclaw/grok-4` | Grok 4 | ✅ | 通用推理 |
 
 ---
 
-## 核心特性：灵活的 API Key 配置
+## 安装（一键完成）
 
-### 🔑 模式一：一键配置（推荐）
+⚠️ **重要提示**：插件必须安装到 `~/.cache/opencode/` 目录下，否则无法正确加载。请根据你的操作系统，复制下方的**一键安装命令**并执行。
 
-设置一个统一的 API Key，自动应用到所有模型：
-
-```bash
-# 通过 OpenCode 认证
-opencode auth login
-```
-
-运行后会出现交互式菜单：
-
-```
-? Select a provider:
-  Anthropic
-  Copilot
-> Other              ← 选择这个
-
-? Enter provider name: newclaw     ← 输入 newclaw（小写）
-
-? Enter API key: sk-your-key       ← 粘贴你的 NewClaw API Key
-```
-
-> **注意**：必须先完成「安装插件」步骤，并重新启动 OpenCode 后，`opencode auth login` 的 Other 选项才会生效。重新启动方法：在终端中按 `Ctrl + C` 退出当前 OpenCode，然后重新运行 `opencode`。
+### macOS / Linux
+请在终端中复制粘贴并运行以下完整命令：
 
 ```bash
-# 或通过环境变量（无需 opencode auth login）
-export NEWCLAW_API_KEY="sk-your-newclaw-key"
+# 一键安装（复制粘贴即可）
+npm install -g opencode-ai && \
+opencode --version && \
+cd ~/.cache/opencode && \
+npm install https://github.com/Jalone5186/opencode-newclaw-auth.git && \
+node node_modules/opencode-newclaw-auth/scripts/install-opencode-newclaw.cjs && \
+echo "✅ 安装完成！运行 opencode 启动"
 ```
 
-### 🔐 模式二：按厂商配置不同 Key
+### Windows (PowerShell)
+请在 PowerShell 中复制粘贴并运行以下完整命令（注意缓存目录会自动识别）：
 
-为不同模型厂商设置独立的 API Key（优先级高于统一 Key）：
+```powershell
+# 一键安装（复制粘贴即可）
+npm install -g opencode-ai; `
+opencode --version; `
+cd "$env:LOCALAPPDATA\opencode"; `
+if (-not (Test-Path .)) { cd "$env:USERPROFILE\.cache\opencode" }; `
+npm install https://github.com/Jalone5186/opencode-newclaw-auth.git; `
+node node_modules/opencode-newclaw-auth/scripts/install-opencode-newclaw.cjs; `
+Write-Host "✅ 安装完成！运行 opencode 启动"
+```
+
+### 同时安装 oh-my-opencode（高级用户）
+如果你想同时安装认证插件和 oh-my-opencode AI 代理编排框架，可以使用以下一键命令（macOS / Linux）：
 
 ```bash
-# 在 ~/.zshrc 或 ~/.bashrc 中添加
-export NEWCLAW_API_KEY="sk-default-key"           # 默认/兜底 Key
-export NEWCLAW_CLAUDE_API_KEY="sk-claude-key"      # Claude 专用 Key
-export NEWCLAW_CODEX_API_KEY="sk-codex-key"        # Codex/GPT 专用 Key
-export NEWCLAW_GEMINI_API_KEY="sk-gemini-key"      # Gemini 专用 Key
+cd ~/.cache/opencode && npm install https://github.com/Jalone5186/opencode-newclaw-auth.git oh-my-opencode && node node_modules/opencode-newclaw-auth/scripts/install-opencode-newclaw.cjs
 ```
-
-**Key 优先级**：`厂商专用 Key` > `统一 Key (NEWCLAW_API_KEY)` > `OpenCode auth key`
+Windows 用户请参考上方的 PowerShell 语法替换 `npm install` 部分。详见 [INSTALL-WITH-OMO.md](./INSTALL-WITH-OMO.md)。
 
 ---
 
-## 快速开始
+## 配置 API Key
 
-### 前置条件
-
-- 已安装最新版 [OpenCode](https://opencode.ai/)：`npm install -g opencode-ai`（建议插件系统版本不低于 `@opencode-ai/plugin@1.0.150`）
-- 已安装 [Node.js](https://nodejs.org/)（用于执行 postinstall 脚本）
-- 已安装 [Bun](https://bun.sh/)（如需在本地运行 build/typecheck/test）
-- 已注册 [NewClaw](https://newclaw.ai/) 账号并获取 API Key
-
-### 第一步：安装插件
-
-⚠️ **插件必须安装到 OpenCode 配置目录 `~/.config/opencode/` 下**，否则 OpenCode 无法加载。
-
-```bash
-# 先启动一次 OpenCode 让它初始化配置目录（如果 ~/.config/opencode 已存在则跳过）
-opencode
-# 启动后 Ctrl+C 退出
-
-# 进入 OpenCode 配置目录
-cd ~/.config/opencode
-```
-
-**🚀 一键安装 NewClaw + oh-my-opencode（推荐）**
-
-同时安装认证插件和 [oh-my-opencode](https://github.com/code-yeongyu/oh-my-opencode) AI 代理编排框架：
-
-```bash
-npm install https://github.com/Jalone5186/opencode-newclaw-auth.git oh-my-opencode
-```
-
-详见 [INSTALL-WITH-OMO.md](./INSTALL-WITH-OMO.md)。
-
-**仅安装 NewClaw 认证插件：**
-
-```bash
-npm install https://github.com/Jalone5186/opencode-newclaw-auth.git
-```
-
-安装完成后，`postinstall` 脚本会自动将插件配置写入 `~/.config/opencode/opencode.json`（或 `~/.config/opencode/opencode.jsonc`）。
-
-> 使用 `npm install` 时会自动触发 postinstall；如果你使用 `bun add` 后没有看到配置更新，请手动执行下方 FAQ 里的脚本命令。
-
-> **⚠️ 安装报错 `Permission denied (publickey)` ？**
-> 
-> 这是因为 npm 默认使用 SSH 协议拉取 Git 仓库。运行以下命令强制使用 HTTPS：
-> ```bash
-> git config --global url."https://github.com/".insteadOf "git@github.com:"
-> ```
-> 然后重新执行安装命令即可。
-
-### 第二步：重启 OpenCode（关键）
-
-如果你已经在运行 OpenCode，请先重启让新 provider 生效：
-
-```bash
-# 在当前 opencode 终端按 Ctrl + C 退出后重新启动
-opencode
-```
-
-### 第三步：配置 API Key
-
-**方式 A：通过 OpenCode 认证（推荐）**
+安装完成后，你需要配置 API Key 才能使用。我们推荐使用 OpenCode 内置的认证流程：
 
 ```bash
 opencode auth login
 ```
 
-运行后按以下步骤操作：
+运行后会出现交互式菜单，请按以下步骤操作：
+1. `Select a provider`: 选择 `Other`
+2. `Enter provider name`: 输入 `newclaw`（必须全小写）
+3. `Enter API key`: 粘贴你的 NewClaw API Key
 
-```
-? Select a provider:
-  Anthropic
-  Copilot
-> Other              ← 第 1 步：选择 Other
+> **没看到 Other 选项？** 
+> 确保你已经运行了安装步骤中的 `postinstall` 脚本（即安装命令的最后一步 `node node_modules/...`），并且如果你已经打开了 OpenCode，请按 `Ctrl + C` 退出后再重新启动它。
 
-? Enter provider name: newclaw     ← 第 2 步：输入 newclaw（全小写）
+### 按模型厂商独立配置 Key（可选）
 
-? Enter API key: sk-your-key       ← 第 3 步：粘贴你的 NewClaw API Key
-```
+如果你想为不同的模型使用不同的 Key，可以通过设置环境变量来实现（环境变量的优先级高于通过 `opencode auth login` 配置的 Key）：
 
-> **没看到 Other 选项？** 请确认已完成「第一步：安装插件」，然后重新启动 OpenCode：在终端中按 `Ctrl + C` 退出，再运行 `opencode`。
-**方式 B：通过环境变量**
+| 变量名 | 说明 |
+|--------|------|
+| `NEWCLAW_API_KEY` | 统一 API Key |
+| `NEWCLAW_CLAUDE_API_KEY` | Claude 专用 Key |
+| `NEWCLAW_CODEX_API_KEY` | Codex/GPT 专用 Key |
+| `NEWCLAW_DEEPSEEK_API_KEY` | DeepSeek 专用 Key |
+| `NEWCLAW_GROK_API_KEY` | Grok 专用 Key |
+
+在你的 `~/.zshrc` 或 `~/.bashrc` 中添加即可：
 ```bash
-# 在 ~/.zshrc 或 ~/.bashrc 中添加
-export NEWCLAW_API_KEY="sk-your-newclaw-key"
-# 然后重新加载
-source ~/.zshrc
+export NEWCLAW_CLAUDE_API_KEY="sk-claude-key"
+export NEWCLAW_DEEPSEEK_API_KEY="sk-deepseek-key"
 ```
 
-### 第四步：启动使用
+---
+
+## 启动使用
+
+配置好 Key 后，你可以直接启动 OpenCode，或者在启动时指定模型：
 
 ```bash
+# 默认启动
+opencode
+
 # 指定模型启动
 opencode --model newclaw/claude-opus-4-6
-
-# 或启动后在 OpenCode 中切换模型
-opencode
 ```
 
-### 验证安装是否成功
+---
 
-```bash
-# 检查 OpenCode 配置（兼容 json/jsonc）
-grep -n "newclaw" ~/.config/opencode/opencode.json ~/.config/opencode/opencode.jsonc 2>/dev/null
+## 模型自动同步
 
-# 如果安装了 oh-my-opencode，再检查模型分配配置
-grep -n "newclaw" ~/.config/opencode/oh-my-opencode.json 2>/dev/null
+本插件支持**模型列表自动同步**功能：
 
-# 预期输出至少包含：provider 中的 "newclaw" 与模型前缀 "newclaw/"
-```
+- 每次启动 OpenCode 时，插件会自动调用 NewClaw API 获取最新的可用模型列表
+- 新模型会自动添加到你的 `opencode.json` 配置中，无需手动更新
+- 使用 24 小时缓存，不会每次启动都请求 API
+- 如果 API 不可用，会使用缓存中的模型列表
+
+你不需要做任何额外配置，只要安装了插件并配置了 API Key，模型列表就会自动保持最新。
 
 ---
 
 ## 常见问题
 
-**Q: 安装时报错 `bun: command not found`**
+## 常见问题
 
-已修复。当前版本使用 `node` 执行 postinstall 脚本，不再依赖 bun。请确保使用最新版本。
+**Q: 安装后还是提示 ProviderInitError?**
+这通常是因为插件没有安装在正确的目录下。请确保你是按照教程在 `~/.cache/opencode/` 目录下执行的安装命令，并且成功执行了 `postinstall` 脚本。
 
-**Q: 安装后 opencode.json 没有更新**
+**Q: Windows 上找不到 ~/.cache/opencode 目录?**
+Windows 下 OpenCode 的缓存目录通常在 `%LOCALAPPDATA%\opencode` 或 `%USERPROFILE%\.cache\opencode`。上面提供的 PowerShell 一键安装命令已经帮你自动处理了这个问题，请直接使用该命令。
 
-手动运行 postinstall 脚本（在你执行 `npm install` / `bun add` 的同一目录）：
+**Q: 安装报错 `Permission denied (publickey)` ？**
+这是因为 npm 默认使用 SSH 协议拉取 Git 仓库。运行以下命令强制使用 HTTPS：
 ```bash
-node node_modules/opencode-newclaw-auth/scripts/install-opencode-newclaw.cjs
+git config --global url."https://github.com/".insteadOf "git@github.com:"
 ```
-
-**Q: 如何同时使用 oh-my-opencode？**
-
-```bash
-npm install https://github.com/Jalone5186/opencode-newclaw-auth.git oh-my-opencode
-```
-详见 [INSTALL-WITH-OMO.md](./INSTALL-WITH-OMO.md)。
-
-**Q: 如何为不同模型使用不同的 API Key？**
-
-设置对应的环境变量即可，优先级高于统一 Key：
-```bash
-export NEWCLAW_CLAUDE_API_KEY="sk-claude-key"
-export NEWCLAW_CODEX_API_KEY="sk-codex-key"
-export NEWCLAW_GEMINI_API_KEY="sk-gemini-key"
-```
-
-**Q: 如何添加 Grok、千问等其他模型？**
-
-本插件支持自定义扩展，只需修改模型注册表即可添加新模型。详见 [CUSTOM-MODELS.md](./CUSTOM-MODELS.md)。
-
-## 使用
-
-```bash
-# 使用 Claude
-opencode --model newclaw/claude-opus-4-6
-
-# 使用 Codex
-opencode --model newclaw/gpt-5.3-codex-high
-
-# 使用 Gemini
-opencode --model newclaw/gemini-3.1-pro-preview
-```
-
----
-
-## 环境变量
-
-| 变量名 | 默认值 | 说明 |
-|--------|--------|------|
-| `NEWCLAW_API_KEY` | - | 统一 API Key（一键配置所有模型） |
-| `NEWCLAW_CLAUDE_API_KEY` | - | Claude 模型专用 Key（优先级高于统一 Key） |
-| `NEWCLAW_CODEX_API_KEY` | - | Codex/GPT 模型专用 Key（优先级高于统一 Key） |
-| `NEWCLAW_GEMINI_API_KEY` | - | Gemini 模型专用 Key（优先级高于统一 Key） |
-| `ENABLE_PLUGIN_REQUEST_LOGGING` | - | 设为 `1` 启用请求日志 |
-| `DEBUG_NEWCLAW_PLUGIN` | - | 设为 `1` 启用调试日志 |
-| `SAVE_RAW_RESPONSE` | - | 设为 `1` 保存原始响应到临时目录 |
+然后重新执行安装命令即可。
 
 ---
 
@@ -294,13 +200,15 @@ opencode --model newclaw/gemini-3.1-pro-preview
 
 ## 开发
 
+如果你想参与本插件的开发：
+
 ```bash
 git clone https://github.com/Jalone5186/opencode-newclaw-auth.git
 cd opencode-newclaw-auth
-bun install
-bun run typecheck
-bun run test
-bun run build
+npm install
+npm run typecheck
+npm run test
+npm run build
 ```
 
 ---

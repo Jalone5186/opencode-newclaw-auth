@@ -6,7 +6,7 @@
  *
  * KEY FEATURE: Per-provider API keys + one-key mode
  * - Set NEWCLAW_API_KEY for unified access to all models
- * - Or set NEWCLAW_CLAUDE_API_KEY / NEWCLAW_CODEX_API_KEY / NEWCLAW_GEMINI_API_KEY individually
+ * - Or set NEWCLAW_CLAUDE_API_KEY / NEWCLAW_CODEX_API_KEY / NEWCLAW_DEEPSEEK_API_KEY / NEWCLAW_GROK_API_KEY individually
  * - Per-provider keys take priority over the unified key
  */
 
@@ -20,11 +20,7 @@ import {
   CODEX_BASE_URL,
   PROVIDER_ID,
   NEWCLAW_ANTHROPIC_BASE_URL,
-  NEWCLAW_GEMINI_BASE_URL,
-  NEWCLAW_BASE_URL,
   HEADER_NAMES,
-  GEMINI_USER_AGENT,
-  GEMINI_API_CLIENT,
 } from "./lib/constants"
 import {
   transformRequestForCodex,
@@ -39,6 +35,7 @@ import { saveRawResponse, SAVE_RAW_RESPONSE_ENABLED } from "./lib/logger"
 import { detectFamily, resolveApiKeyForFamily } from "./lib/models"
 import STANDARD_PROVIDER_CONFIG from "./lib/provider-config.json"
 import { syncOmoConfig } from "./lib/hooks/omo-config-sync"
+import { syncModelsFromApi } from "./lib/models/auto-sync"
 
 const CODEX_MODEL_PREFIXES = ["gpt-", "codex"]
 const PACKAGE_NAME = "opencode-newclaw-auth"
@@ -203,11 +200,6 @@ const isCodexModel = (model: string | undefined) =>
 
 const isClaudeUrl = (url: string) => url.includes("/v1/messages")
 
-const isGeminiUrl = (url: string) =>
-  url.includes(":generateContent") ||
-  url.includes(":streamGenerateContent") ||
-  (url.includes("/models/") && url.includes("/v1"))
-
 const saveResponseIfEnabled = async (
   response: Response,
   provider: string,
@@ -249,52 +241,6 @@ const rewriteUrl = (originalUrl: string, baseUrl: string) => {
   }
 }
 
-const ensureGeminiSseParam = (url: string) => {
-  try {
-    const parsed = new URL(url)
-    const alt = parsed.searchParams.get("alt")
-    if (alt === "sse") return url
-    parsed.searchParams.set("alt", "sse")
-    return parsed.toString()
-  } catch {
-    return url
-  }
-}
-
-const buildGeminiUrl = (originalUrl: string, streaming: boolean) => {
-  try {
-    const original = new URL(originalUrl)
-    let urlPath = original.pathname
-    if (!urlPath.includes("/v1beta/") && !urlPath.includes("/v1/")) {
-      urlPath = `/v1beta${urlPath.startsWith("/") ? "" : "/"}${urlPath}`
-    }
-    const base = new URL(NEWCLAW_GEMINI_BASE_URL)
-    const basePath = base.pathname.replace(/\/$/, "")
-    const target = new URL(base.origin)
-    target.pathname = `${basePath}${urlPath}`
-    target.search = original.search
-    const url = target.toString()
-    return streaming ? ensureGeminiSseParam(url) : url
-  } catch {
-    return originalUrl
-  }
-}
-
-const createGeminiHeaders = (init: RequestInit | undefined, apiKey: string) => {
-  const headers = new Headers(init?.headers ?? {})
-  headers.delete(HEADER_NAMES.AUTHORIZATION)
-  headers.delete("x-api-key")
-  headers.set(HEADER_NAMES.USER_AGENT, GEMINI_USER_AGENT)
-  headers.set(HEADER_NAMES.X_GOOG_API_CLIENT, GEMINI_API_CLIENT)
-  headers.set(HEADER_NAMES.X_GOOG_API_KEY, apiKey)
-  if (!headers.has(HEADER_NAMES.ACCEPT)) {
-    headers.set(HEADER_NAMES.ACCEPT, "*/*")
-  }
-  if (!headers.has(HEADER_NAMES.CONTENT_TYPE)) {
-    headers.set(HEADER_NAMES.CONTENT_TYPE, "application/json")
-  }
-  return headers
-}
 
 const getOutputTokenLimit = (
   input: Parameters<NonNullable<Hooks["chat.params"]>>[0],
@@ -318,7 +264,12 @@ export const NewclawAuthPlugin: Plugin = async (ctx: PluginInput) => {
     )
   })
 
-  // Sync oh-my-opencode config in background (non-blocking)
+  await syncModelsFromApi().catch((error) => {
+    console.warn(
+      `[${PACKAGE_NAME}] Model auto-sync failed: ${error instanceof Error ? error.message : error}`,
+    )
+  })
+
   syncOmoConfig().catch((error) => {
     console.warn(
       `[${PACKAGE_NAME}] Failed to sync OMO config: ${error instanceof Error ? error.message : error}`,
@@ -348,8 +299,7 @@ export const NewclawAuthPlugin: Plugin = async (ctx: PluginInput) => {
           const resolvedApiKey = resolveApiKeyForFamily(family, apiKey)
 
           const isClaudeRequest = isModel(model, "claude-") || isClaudeUrl(originalUrl)
-          const isGeminiRequest = isModel(model, "gemini-") || isGeminiUrl(originalUrl)
-          const isCodexRequest = !isClaudeRequest && !isGeminiRequest && isCodexModel(model)
+          const isCodexRequest = !isClaudeRequest && isCodexModel(model)
 
           if (isCodexRequest) {
             const transformation = await transformRequestForCodex(init)
@@ -379,14 +329,6 @@ export const NewclawAuthPlugin: Plugin = async (ctx: PluginInput) => {
             return await handleSuccessResponse(response, isStreaming)
           }
 
-          if (isGeminiRequest) {
-            const isGeminiStreaming = isStreaming || originalUrl.includes("streamGenerateContent")
-            const geminiUrl = buildGeminiUrl(originalUrl, isGeminiStreaming)
-            const headers = createGeminiHeaders(init, resolvedApiKey)
-            const requestInit = { ...init, headers }
-            const response = await fetch(geminiUrl, requestInit)
-            return await saveResponseIfEnabled(response, "gemini", { url: geminiUrl, model: modelId })
-          }
 
           if (isClaudeRequest) {
             const targetUrl = rewriteUrl(originalUrl, NEWCLAW_ANTHROPIC_BASE_URL)

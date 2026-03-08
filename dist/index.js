@@ -1,20 +1,17 @@
 // @bun
 // index.ts
-import { mkdir as mkdir2, readFile as readFile2, writeFile as writeFile2, access as access2 } from "fs/promises";
-import path2 from "path";
-import os2 from "os";
+import { mkdir as mkdir3, readFile as readFile3, writeFile as writeFile3, access as access2 } from "fs/promises";
+import path3 from "path";
+import os3 from "os";
 
 // lib/constants.ts
 var PLUGIN_NAME = "opencode-newclaw-auth";
 var PROVIDER_ID = "newclaw";
 var AUTH_METHOD_LABEL = "NewClaw API Key";
 var NEWCLAW_ANTHROPIC_BASE_URL = "https://newclaw.ai/v1";
-var NEWCLAW_GEMINI_BASE_URL = "https://newclaw.ai/v1";
 var CODEX_BASE_URL = "https://newclaw.ai/v1";
 var USER_AGENT = "opencode-newclaw-auth/0.1.0";
 var ORIGINATOR = "opencode_newclaw";
-var GEMINI_USER_AGENT = "GeminiCLI/v25.2.1 (darwin; arm64)";
-var GEMINI_API_CLIENT = "google-genai-sdk/1.30.0 gl-node/v25.2.1";
 var SAVE_RAW_RESPONSE_ENV = "SAVE_RAW_RESPONSE";
 var HEADER_NAMES = {
   AUTHORIZATION: "authorization",
@@ -25,9 +22,7 @@ var HEADER_NAMES = {
   ACCEPT: "accept",
   CONTENT_TYPE: "content-type",
   OPENAI_BETA: "openai-beta",
-  CHATGPT_ACCOUNT_ID: "chatgpt-account-id",
-  X_GOOG_API_KEY: "x-goog-api-key",
-  X_GOOG_API_CLIENT: "x-goog-api-client"
+  CHATGPT_ACCOUNT_ID: "chatgpt-account-id"
 };
 
 // lib/logger.ts
@@ -95,17 +90,17 @@ function saveRawResponse(provider, responseBody, metadata) {
 // lib/request/request-transformer.ts
 function normalizeModel(model) {
   if (!model)
-    return "gpt-5.3-codex-high";
+    return "gpt-5-codex-high";
   const modelId = model.includes("/") ? model.split("/").pop() : model;
   const normalized = modelId.toLowerCase();
-  if (normalized.includes("gpt-5.3-codex-high") || normalized.includes("gpt 5.3 codex high")) {
-    return "gpt-5.3-codex-high";
+  if (normalized.includes("gpt-5-codex-high") || normalized.includes("gpt 5 codex high")) {
+    return "gpt-5-codex-high";
   }
   if (normalized.includes("gpt-5.2") || normalized.includes("gpt 5.2")) {
     return "gpt-5.2";
   }
   if (normalized.includes("codex")) {
-    return "gpt-5.3-codex-high";
+    return "gpt-5-codex-high";
   }
   return modelId;
 }
@@ -142,9 +137,9 @@ function sanitizeItemIds(input) {
 }
 function getReasoningConfig(modelName, userConfig = {}) {
   const normalizedName = modelName?.toLowerCase() ?? "";
-  const isGpt53Codex = normalizedName.includes("gpt-5.3-codex") || normalizedName.includes("gpt 5.3 codex");
+  const isGpt5Codex = normalizedName.includes("gpt-5-codex") || normalizedName.includes("gpt 5 codex");
   const isGpt52General = normalizedName.includes("gpt-5.2") || normalizedName.includes("gpt 5.2");
-  const supportsXhigh = isGpt52General || isGpt53Codex;
+  const supportsXhigh = isGpt52General || isGpt5Codex;
   const supportsNone = isGpt52General;
   const defaultEffort = supportsXhigh ? "high" : "medium";
   let effort = userConfig.reasoningEffort || defaultEffort;
@@ -425,7 +420,8 @@ function resolveApiKeyForFamily(family, unifiedKey) {
   const envMap = {
     claude: "NEWCLAW_CLAUDE_API_KEY",
     codex: "NEWCLAW_CODEX_API_KEY",
-    gemini: "NEWCLAW_GEMINI_API_KEY"
+    deepseek: "NEWCLAW_DEEPSEEK_API_KEY",
+    grok: "NEWCLAW_GROK_API_KEY"
   };
   const envKey = process.env[envMap[family]];
   if (envKey?.trim())
@@ -436,8 +432,10 @@ function detectFamily(modelId) {
   const id = modelId.toLowerCase();
   if (id.startsWith("claude-"))
     return "claude";
-  if (id.startsWith("gemini-"))
-    return "gemini";
+  if (id.startsWith("deepseek-"))
+    return "deepseek";
+  if (id.startsWith("grok-"))
+    return "grok";
   return "codex";
 }
 // lib/provider-config.json
@@ -470,8 +468,19 @@ var provider_config_default = {
         output: ["text"]
       }
     },
-    "gpt-5.3-codex-high": {
-      name: "GPT-5.3 Codex High",
+    "claude-haiku-4-5-20251001": {
+      name: "Claude Haiku 4.5",
+      limit: {
+        context: 200000,
+        output: 8192
+      },
+      modalities: {
+        input: ["text", "image"],
+        output: ["text"]
+      }
+    },
+    "gpt-5-codex-high": {
+      name: "GPT-5 Codex High",
       limit: {
         context: 400000,
         output: 128000
@@ -503,11 +512,44 @@ var provider_config_default = {
         output: ["text"]
       }
     },
-    "gemini-3.1-pro-preview": {
-      name: "Gemini 3.1 Pro Preview",
+    "o4-mini": {
+      name: "O4 Mini",
       limit: {
-        context: 1048576,
-        output: 65536
+        context: 200000,
+        output: 1e5
+      },
+      modalities: {
+        input: ["text", "image"],
+        output: ["text"]
+      }
+    },
+    "deepseek-r1": {
+      name: "DeepSeek R1",
+      limit: {
+        context: 128000,
+        output: 64000
+      },
+      modalities: {
+        input: ["text"],
+        output: ["text"]
+      }
+    },
+    "deepseek-v3": {
+      name: "DeepSeek V3",
+      limit: {
+        context: 128000,
+        output: 64000
+      },
+      modalities: {
+        input: ["text"],
+        output: ["text"]
+      }
+    },
+    "grok-4": {
+      name: "Grok 4",
+      limit: {
+        context: 200000,
+        output: 1e5
       },
       modalities: {
         input: ["text", "image"],
@@ -530,11 +572,11 @@ var default_omo_config_default = {
       variant: "max"
     },
     hephaestus: {
-      model: "newclaw/gpt-5.3-codex-high",
+      model: "newclaw/gpt-5-codex-high",
       variant: "medium"
     },
     oracle: {
-      model: "newclaw/gpt-5.2",
+      model: "newclaw/deepseek-r1",
       variant: "high"
     },
     librarian: {
@@ -544,7 +586,7 @@ var default_omo_config_default = {
       model: "newclaw/claude-sonnet-4-6"
     },
     "multimodal-looker": {
-      model: "newclaw/gpt-5.3-codex-high",
+      model: "newclaw/gpt-5-codex-high",
       variant: "medium"
     },
     prometheus: {
@@ -556,7 +598,7 @@ var default_omo_config_default = {
       variant: "max"
     },
     momus: {
-      model: "newclaw/gpt-5.2",
+      model: "newclaw/gpt-5.4",
       variant: "medium"
     },
     atlas: {
@@ -578,31 +620,31 @@ var default_omo_config_default = {
       model: "newclaw/claude-sonnet-4-6"
     },
     "frontend-ui-ux-engineer": {
-      model: "newclaw/gemini-3.1-pro-preview"
+      model: "newclaw/claude-sonnet-4-6"
     },
     "document-writer": {
-      model: "newclaw/gemini-3.1-pro-preview"
+      model: "newclaw/claude-haiku-4-5-20251001"
     }
   },
   categories: {
     "visual-engineering": {
-      model: "newclaw/gemini-3.1-pro-preview",
+      model: "newclaw/claude-sonnet-4-6",
       variant: "high"
     },
     ultrabrain: {
-      model: "newclaw/gpt-5.3-codex-high",
+      model: "newclaw/deepseek-r1",
       variant: "high"
     },
     deep: {
-      model: "newclaw/gpt-5.3-codex-high",
+      model: "newclaw/gpt-5-codex-high",
       variant: "medium"
     },
     artistry: {
-      model: "newclaw/gemini-3.1-pro-preview",
+      model: "newclaw/claude-opus-4-6",
       variant: "high"
     },
     quick: {
-      model: "newclaw/claude-sonnet-4-6"
+      model: "newclaw/claude-haiku-4-5-20251001"
     },
     "unspecified-low": {
       model: "newclaw/claude-sonnet-4-6"
@@ -611,13 +653,13 @@ var default_omo_config_default = {
       model: "newclaw/claude-sonnet-4-6"
     },
     writing: {
-      model: "newclaw/gemini-3.1-pro-preview"
+      model: "newclaw/claude-sonnet-4-6"
     },
     visual: {
-      model: "newclaw/gemini-3.1-pro-preview"
+      model: "newclaw/claude-sonnet-4-6"
     },
     "business-logic": {
-      model: "newclaw/gpt-5.2"
+      model: "newclaw/gpt-5.4"
     },
     "data-analysis": {
       model: "newclaw/claude-sonnet-4-6"
@@ -718,19 +760,290 @@ async function syncOmoConfig() {
   }
 }
 
+// lib/models/auto-sync.ts
+import { readFile as readFile2, writeFile as writeFile2, mkdir as mkdir2 } from "fs/promises";
+import path2 from "path";
+import os2 from "os";
+var CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+var API_TIMEOUT_MS = 1e4;
+var PACKAGE_NAME = "opencode-newclaw-auth";
+var PROVIDER_ID3 = "newclaw";
+var CODING_MODEL_PREFIXES = [
+  "claude-",
+  "gpt-",
+  "o1-",
+  "o3-",
+  "o4-",
+  "deepseek-",
+  "grok-",
+  "codex-"
+];
+var SKIP_PATTERNS = [
+  /^gpt-3/,
+  /^gpt-4(?!o)/i,
+  /embedding/i,
+  /whisper/i,
+  /tts/i,
+  /dall-e/i,
+  /moderation/i,
+  /realtime/i,
+  /audio/i
+];
+var homeDir2 = process.env.OPENCODE_TEST_HOME || os2.homedir();
+function getCachePath() {
+  const cacheRoot = process.env.XDG_CACHE_HOME || path2.join(homeDir2, ".cache");
+  return path2.join(cacheRoot, "opencode", "newclaw-models-cache.json");
+}
+function getConfigPaths() {
+  const configRoot2 = process.env.XDG_CONFIG_HOME || path2.join(homeDir2, ".config");
+  const dir = path2.join(configRoot2, "opencode");
+  return {
+    json: path2.join(dir, "opencode.json"),
+    jsonc: path2.join(dir, "opencode.jsonc"),
+    dir
+  };
+}
+async function readJsonSafe(filePath) {
+  try {
+    const text = await readFile2(filePath, "utf-8");
+    const stripped = filePath.endsWith(".jsonc") ? text.replace(/\\"|"(?:\\"|[^"])*"|(\/\/.*|\/\*[\s\S]*?\*\/)/g, (m, g) => g ? "" : m).replace(/,(\s*[}\]])/g, "$1") : text;
+    return JSON.parse(stripped);
+  } catch {
+    return;
+  }
+}
+async function fileExists2(filePath) {
+  try {
+    await readFile2(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+async function readCache() {
+  try {
+    const raw = await readFile2(getCachePath(), "utf-8");
+    const data = JSON.parse(raw);
+    if (data && data.timestamp && Array.isArray(data.models)) {
+      return data;
+    }
+    return;
+  } catch {
+    return;
+  }
+}
+async function writeCache(models) {
+  try {
+    const cachePath = getCachePath();
+    await mkdir2(path2.dirname(cachePath), { recursive: true });
+    const data = { timestamp: Date.now(), models };
+    await writeFile2(cachePath, JSON.stringify(data, null, 2), "utf-8");
+  } catch {}
+}
+function isCodingModel(modelId) {
+  const lower = modelId.toLowerCase();
+  const matchesPrefix = CODING_MODEL_PREFIXES.some((prefix) => lower.startsWith(prefix));
+  if (!matchesPrefix)
+    return false;
+  const shouldSkip = SKIP_PATTERNS.some((pattern) => pattern.test(lower));
+  return !shouldSkip;
+}
+function modelIdToDisplayName(id) {
+  return id.split("-").map((part) => {
+    if (/^\d/.test(part))
+      return part;
+    return part.charAt(0).toUpperCase() + part.slice(1);
+  }).join(" ").replace(/^Gpt /, "GPT-").replace(/^O(\d)/, "O$1").replace(/^Claude /, "Claude ").replace(/^Deepseek /, "DeepSeek ").replace(/^Grok /, "Grok ").replace(/^Codex /, "Codex ");
+}
+function detectModalities(modelId) {
+  const lower = modelId.toLowerCase();
+  if (lower.startsWith("deepseek-")) {
+    return { input: ["text"], output: ["text"] };
+  }
+  return { input: ["text", "image"], output: ["text"] };
+}
+function detectLimits(modelId) {
+  const lower = modelId.toLowerCase();
+  if (lower.includes("codex") || lower.startsWith("gpt-5")) {
+    return { context: 400000, output: 128000 };
+  }
+  if (lower.startsWith("claude-")) {
+    if (lower.includes("haiku"))
+      return { context: 200000, output: 8192 };
+    return { context: 200000, output: 64000 };
+  }
+  if (lower.startsWith("deepseek-")) {
+    return { context: 128000, output: 64000 };
+  }
+  if (lower.startsWith("o1-") || lower.startsWith("o3-") || lower.startsWith("o4-")) {
+    return { context: 200000, output: 1e5 };
+  }
+  if (lower.startsWith("grok-")) {
+    return { context: 200000, output: 1e5 };
+  }
+  return { context: 128000, output: 32000 };
+}
+function apiModelsToConfig(apiModels) {
+  const result = {};
+  for (const model of apiModels) {
+    if (!isCodingModel(model.id))
+      continue;
+    result[model.id] = {
+      name: modelIdToDisplayName(model.id),
+      limit: detectLimits(model.id),
+      modalities: detectModalities(model.id)
+    };
+  }
+  return result;
+}
+async function fetchModelsFromApi(apiKey) {
+  try {
+    const headers = {
+      "Content-Type": "application/json"
+    };
+    if (apiKey) {
+      headers["Authorization"] = `Bearer ${apiKey}`;
+    }
+    const controller = new AbortController;
+    const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+    try {
+      const response = await fetch("https://newclaw.ai/v1/models", {
+        method: "GET",
+        headers,
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      if (!response.ok) {
+        return;
+      }
+      const data = await response.json();
+      if (!data || !Array.isArray(data.data)) {
+        return;
+      }
+      return data.data;
+    } finally {
+      clearTimeout(timeout);
+    }
+  } catch {
+    return;
+  }
+}
+async function getApiKey() {
+  const envKey = process.env.NEWCLAW_API_KEY;
+  if (envKey?.trim())
+    return envKey.trim();
+  try {
+    const configRoot2 = process.env.XDG_CONFIG_HOME || path2.join(homeDir2, ".config");
+    const authPath = path2.join(configRoot2, "opencode", "auth.json");
+    const raw = await readFile2(authPath, "utf-8");
+    const auth = JSON.parse(raw);
+    const newclawAuth = auth?.[PROVIDER_ID3] ?? auth?.newclaw;
+    if (newclawAuth?.key?.trim())
+      return newclawAuth.key.trim();
+  } catch {}
+  return;
+}
+async function syncModelsFromApi() {
+  try {
+    const cache = await readCache();
+    if (cache && Date.now() - cache.timestamp < CACHE_TTL_MS) {
+      const freshModels = apiModelsToConfig(cache.models);
+      if (Object.keys(freshModels).length > 0) {
+        return await updateConfigModels(freshModels);
+      }
+      return false;
+    }
+    const apiKey = await getApiKey();
+    if (!apiKey) {
+      if (cache) {
+        const staleModels = apiModelsToConfig(cache.models);
+        if (Object.keys(staleModels).length > 0) {
+          return await updateConfigModels(staleModels);
+        }
+      }
+      return false;
+    }
+    const apiModels = await fetchModelsFromApi(apiKey);
+    if (!apiModels || apiModels.length === 0) {
+      if (cache) {
+        const staleModels = apiModelsToConfig(cache.models);
+        if (Object.keys(staleModels).length > 0) {
+          return await updateConfigModels(staleModels);
+        }
+      }
+      return false;
+    }
+    await writeCache(apiModels);
+    const modelConfigs = apiModelsToConfig(apiModels);
+    if (Object.keys(modelConfigs).length === 0) {
+      return false;
+    }
+    return await updateConfigModels(modelConfigs);
+  } catch (err) {
+    console.warn(`[${PACKAGE_NAME}] Model auto-sync failed: ${err instanceof Error ? err.message : err}`);
+    return false;
+  }
+}
+async function updateConfigModels(newModels) {
+  const paths = getConfigPaths();
+  const jsoncExists = await fileExists2(paths.jsonc);
+  const jsonExists = await fileExists2(paths.json);
+  const configPath = jsoncExists ? paths.jsonc : jsonExists ? paths.json : paths.json;
+  const config = await readJsonSafe(configPath) ?? {};
+  if (!config || typeof config !== "object")
+    return false;
+  const providerMap = config.provider && typeof config.provider === "object" ? config.provider : {};
+  const provider = providerMap[PROVIDER_ID3] && typeof providerMap[PROVIDER_ID3] === "object" ? providerMap[PROVIDER_ID3] : {};
+  const existingModels = provider.models && typeof provider.models === "object" ? provider.models : {};
+  const mergedModels = {};
+  for (const [id, config2] of Object.entries(newModels)) {
+    mergedModels[id] = config2;
+  }
+  for (const [id, existingConfig] of Object.entries(existingModels)) {
+    if (typeof existingConfig === "object" && existingConfig !== null) {
+      mergedModels[id] = {
+        ...mergedModels[id],
+        ...existingConfig
+      };
+    }
+  }
+  const existingKeys = Object.keys(existingModels).sort().join(",");
+  const mergedKeys = Object.keys(mergedModels).sort().join(",");
+  if (existingKeys === mergedKeys) {
+    let same = true;
+    for (const key of Object.keys(mergedModels)) {
+      if (JSON.stringify(existingModels[key]) !== JSON.stringify(mergedModels[key])) {
+        same = false;
+        break;
+      }
+    }
+    if (same)
+      return false;
+  }
+  provider.models = mergedModels;
+  providerMap[PROVIDER_ID3] = provider;
+  config.provider = providerMap;
+  await mkdir2(paths.dir, { recursive: true });
+  await writeFile2(configPath, `${JSON.stringify(config, null, 2)}
+`, "utf-8");
+  const modelCount = Object.keys(mergedModels).length;
+  console.log(`[${PACKAGE_NAME}] Synced ${modelCount} models from NewClaw API`);
+  return true;
+}
+
 // index.ts
 var CODEX_MODEL_PREFIXES = ["gpt-", "codex"];
-var PACKAGE_NAME = "opencode-newclaw-auth";
-var PLUGIN_ENTRY = PACKAGE_NAME;
-var PROVIDER_NPM = `${PACKAGE_NAME}/provider`;
+var PACKAGE_NAME2 = "opencode-newclaw-auth";
+var PLUGIN_ENTRY = PACKAGE_NAME2;
+var PROVIDER_NPM = `${PACKAGE_NAME2}/provider`;
 var DEFAULT_OUTPUT_TOKEN_MAX = 32000;
-var homeDir2 = process.env.OPENCODE_TEST_HOME || os2.homedir();
-var configRoot2 = process.env.XDG_CONFIG_HOME || path2.join(homeDir2, ".config");
-var configDir2 = path2.join(configRoot2, "opencode");
-var configPathJson = path2.join(configDir2, "opencode.json");
-var configPathJsonc = path2.join(configDir2, "opencode.jsonc");
+var homeDir3 = process.env.OPENCODE_TEST_HOME || os3.homedir();
+var configRoot2 = process.env.XDG_CONFIG_HOME || path3.join(homeDir3, ".config");
+var configDir2 = path3.join(configRoot2, "opencode");
+var configPathJson = path3.join(configDir2, "opencode.json");
+var configPathJsonc = path3.join(configDir2, "opencode.jsonc");
 var ensureConfigPromise;
-var fileExists2 = async (filePath) => {
+var fileExists3 = async (filePath) => {
   try {
     await access2(filePath);
     return true;
@@ -743,7 +1056,7 @@ var stripJsonComments = (content) => {
 };
 var readJsonOrJsonc = async (filePath) => {
   try {
-    const text = await readFile2(filePath, "utf-8");
+    const text = await readFile3(filePath, "utf-8");
     const stripped = filePath.endsWith(".jsonc") ? stripJsonComments(text) : text;
     return JSON.parse(stripped);
   } catch {
@@ -773,11 +1086,11 @@ var deepEqual = (a, b) => {
   }
   return true;
 };
-var isPackageEntry = (value) => value === PACKAGE_NAME || value.startsWith(`${PACKAGE_NAME}@`);
+var isPackageEntry = (value) => value === PACKAGE_NAME2 || value.startsWith(`${PACKAGE_NAME2}@`);
 var ensurePluginEntry = (list) => {
   if (!Array.isArray(list))
     return [PLUGIN_ENTRY];
-  const filtered = list.filter((entry) => !(typeof entry === "string" && entry.startsWith("file://") && entry.includes(PACKAGE_NAME)));
+  const filtered = list.filter((entry) => !(typeof entry === "string" && entry.startsWith("file://") && entry.includes(PACKAGE_NAME2)));
   const hasPlugin = filtered.some((entry) => typeof entry === "string" && (entry === PLUGIN_ENTRY || isPackageEntry(entry)));
   if (hasPlugin) {
     return filtered.length === list.length ? list : filtered;
@@ -809,8 +1122,8 @@ var ensureConfigFile = async () => {
   if (ensureConfigPromise)
     return ensureConfigPromise;
   ensureConfigPromise = (async () => {
-    const jsoncExists = await fileExists2(configPathJsonc);
-    const jsonExists = await fileExists2(configPathJson);
+    const jsoncExists = await fileExists3(configPathJsonc);
+    const jsonExists = await fileExists3(configPathJson);
     let configPath;
     let config;
     if (jsoncExists) {
@@ -828,8 +1141,8 @@ var ensureConfigFile = async () => {
     const changed = applyProviderConfig(config);
     if (!changed)
       return;
-    await mkdir2(configDir2, { recursive: true });
-    await writeFile2(configPath, `${JSON.stringify(config, null, 2)}
+    await mkdir3(configDir2, { recursive: true });
+    await writeFile3(configPath, `${JSON.stringify(config, null, 2)}
 `, "utf-8");
   })().catch((err) => {
     ensureConfigPromise = undefined;
@@ -853,7 +1166,6 @@ var stripProviderPrefix = (model) => model.includes("/") ? model.split("/").pop(
 var isModel = (model, prefix) => Boolean(model && stripProviderPrefix(model).startsWith(prefix));
 var isCodexModel = (model) => Boolean(model && CODEX_MODEL_PREFIXES.some((prefix) => stripProviderPrefix(model).startsWith(prefix)));
 var isClaudeUrl = (url) => url.includes("/v1/messages");
-var isGeminiUrl = (url) => url.includes(":generateContent") || url.includes(":streamGenerateContent") || url.includes("/models/") && url.includes("/v1");
 var saveResponseIfEnabled = async (response, provider, metadata) => {
   if (!SAVE_RAW_RESPONSE_ENABLED)
     return response;
@@ -885,51 +1197,6 @@ var rewriteUrl = (originalUrl, baseUrl) => {
     return originalUrl;
   }
 };
-var ensureGeminiSseParam = (url) => {
-  try {
-    const parsed = new URL(url);
-    const alt = parsed.searchParams.get("alt");
-    if (alt === "sse")
-      return url;
-    parsed.searchParams.set("alt", "sse");
-    return parsed.toString();
-  } catch {
-    return url;
-  }
-};
-var buildGeminiUrl = (originalUrl, streaming) => {
-  try {
-    const original = new URL(originalUrl);
-    let urlPath = original.pathname;
-    if (!urlPath.includes("/v1beta/") && !urlPath.includes("/v1/")) {
-      urlPath = `/v1beta${urlPath.startsWith("/") ? "" : "/"}${urlPath}`;
-    }
-    const base = new URL(NEWCLAW_GEMINI_BASE_URL);
-    const basePath = base.pathname.replace(/\/$/, "");
-    const target = new URL(base.origin);
-    target.pathname = `${basePath}${urlPath}`;
-    target.search = original.search;
-    const url = target.toString();
-    return streaming ? ensureGeminiSseParam(url) : url;
-  } catch {
-    return originalUrl;
-  }
-};
-var createGeminiHeaders = (init, apiKey) => {
-  const headers = new Headers(init?.headers ?? {});
-  headers.delete(HEADER_NAMES.AUTHORIZATION);
-  headers.delete("x-api-key");
-  headers.set(HEADER_NAMES.USER_AGENT, GEMINI_USER_AGENT);
-  headers.set(HEADER_NAMES.X_GOOG_API_CLIENT, GEMINI_API_CLIENT);
-  headers.set(HEADER_NAMES.X_GOOG_API_KEY, apiKey);
-  if (!headers.has(HEADER_NAMES.ACCEPT)) {
-    headers.set(HEADER_NAMES.ACCEPT, "*/*");
-  }
-  if (!headers.has(HEADER_NAMES.CONTENT_TYPE)) {
-    headers.set(HEADER_NAMES.CONTENT_TYPE, "application/json");
-  }
-  return headers;
-};
 var getOutputTokenLimit = (input, output) => {
   const modelLimit = input.model.limit.output;
   if (typeof modelLimit === "number" && modelLimit > 0) {
@@ -943,10 +1210,13 @@ var getOutputTokenLimit = (input, output) => {
 };
 var NewclawAuthPlugin = async (ctx) => {
   await ensureConfigFile().catch((error) => {
-    console.warn(`[${PACKAGE_NAME}] Failed to update config: ${error instanceof Error ? error.message : error}`);
+    console.warn(`[${PACKAGE_NAME2}] Failed to update config: ${error instanceof Error ? error.message : error}`);
+  });
+  await syncModelsFromApi().catch((error) => {
+    console.warn(`[${PACKAGE_NAME2}] Model auto-sync failed: ${error instanceof Error ? error.message : error}`);
   });
   syncOmoConfig().catch((error) => {
-    console.warn(`[${PACKAGE_NAME}] Failed to sync OMO config: ${error instanceof Error ? error.message : error}`);
+    console.warn(`[${PACKAGE_NAME2}] Failed to sync OMO config: ${error instanceof Error ? error.message : error}`);
   });
   const authHook = {
     provider: PROVIDER_ID,
@@ -967,8 +1237,7 @@ var NewclawAuthPlugin = async (ctx) => {
           const family = detectFamily(modelId);
           const resolvedApiKey = resolveApiKeyForFamily(family, apiKey);
           const isClaudeRequest = isModel(model, "claude-") || isClaudeUrl(originalUrl);
-          const isGeminiRequest = isModel(model, "gemini-") || isGeminiUrl(originalUrl);
-          const isCodexRequest = !isClaudeRequest && !isGeminiRequest && isCodexModel(model);
+          const isCodexRequest = !isClaudeRequest && isCodexModel(model);
           if (isCodexRequest) {
             const transformation = await transformRequestForCodex(init);
             let requestInit = transformation?.updatedInit ?? init;
@@ -989,14 +1258,6 @@ var NewclawAuthPlugin = async (ctx) => {
               return await handleErrorResponse(response);
             }
             return await handleSuccessResponse(response, isStreaming);
-          }
-          if (isGeminiRequest) {
-            const isGeminiStreaming = isStreaming || originalUrl.includes("streamGenerateContent");
-            const geminiUrl = buildGeminiUrl(originalUrl, isGeminiStreaming);
-            const headers2 = createGeminiHeaders(init, resolvedApiKey);
-            const requestInit = { ...init, headers: headers2 };
-            const response = await fetch(geminiUrl, requestInit);
-            return await saveResponseIfEnabled(response, "gemini", { url: geminiUrl, model: modelId });
           }
           if (isClaudeRequest) {
             const targetUrl = rewriteUrl(originalUrl, NEWCLAW_ANTHROPIC_BASE_URL);

@@ -12,15 +12,12 @@ export const AUTH_METHOD_LABEL = "NewClaw API Key"
 // NewClaw API base URLs - all traffic routes through https://newclaw.ai
 export const NEWCLAW_BASE_URL = "https://newclaw.ai/v1"
 export const NEWCLAW_ANTHROPIC_BASE_URL = "https://newclaw.ai/v1"
-export const NEWCLAW_GEMINI_BASE_URL = "https://newclaw.ai/v1"
 
 // Codex-specific endpoint (OpenAI Responses API compatible)
 export const CODEX_BASE_URL = "https://newclaw.ai/v1"
 
 export const USER_AGENT = "opencode-newclaw-auth/0.1.0"
 export const ORIGINATOR = "opencode_newclaw"
-export const GEMINI_USER_AGENT = "GeminiCLI/v25.2.1 (darwin; arm64)"
-export const GEMINI_API_CLIENT = "google-genai-sdk/1.30.0 gl-node/v25.2.1"
 
 export const SAVE_RAW_RESPONSE_ENV = "SAVE_RAW_RESPONSE"
 
@@ -34,8 +31,6 @@ export const HEADER_NAMES = {
   CONTENT_TYPE: "content-type",
   OPENAI_BETA: "openai-beta",
   CHATGPT_ACCOUNT_ID: "chatgpt-account-id",
-  X_GOOG_API_KEY: "x-goog-api-key",
-  X_GOOG_API_CLIENT: "x-goog-api-client",
 } as const
 
 /**
@@ -45,7 +40,8 @@ export const HEADER_NAMES = {
 export const PER_PROVIDER_KEY_ENV = {
   CLAUDE: "NEWCLAW_CLAUDE_API_KEY",
   CODEX: "NEWCLAW_CODEX_API_KEY",
-  GEMINI: "NEWCLAW_GEMINI_API_KEY",
+  DEEPSEEK: "NEWCLAW_DEEPSEEK_API_KEY",
+  GROK: "NEWCLAW_GROK_API_KEY",
 } as const
 
 export const UNIFIED_KEY_ENV = "NEWCLAW_API_KEY"

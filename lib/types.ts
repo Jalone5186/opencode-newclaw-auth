@@ -64,5 +64,6 @@ export interface KeyConfig {
   /** Per-provider overrides */
   claude?: string
   codex?: string
-  gemini?: string
+  deepseek?: string
+  grok?: string
 }

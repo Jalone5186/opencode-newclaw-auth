@@ -10,7 +10,7 @@
  * 3. Done!
  */
 
-export type ModelFamily = "codex" | "claude" | "gemini"
+export type ModelFamily = "codex" | "claude" | "deepseek" | "grok"
 export type ReasoningSupport = "none" | "basic" | "full" | "xhigh"
 
 export interface ModelDefinition {
@@ -40,9 +40,10 @@ export const PROVIDER_ID = "newclaw"
  * ============================================
  *
  * Default supported models:
- * - Claude (Anthropic): claude-opus-4-6, claude-sonnet-4-6
- * - Codex (OpenAI): gpt-5.3-codex-high, gpt-5.4, gpt-5.2
- * - Gemini (Google): gemini-3.1-pro-preview
+ * - Claude (Anthropic): claude-opus-4-6, claude-sonnet-4-6, claude-haiku-4-5-20251001
+ * - Codex (OpenAI): gpt-5-codex-high, gpt-5.4, gpt-5.2, o4-mini
+ * - DeepSeek: deepseek-r1, deepseek-v3
+ * - Grok: grok-4
  */
 export const MODELS: ModelDefinition[] = [
   // ===== Claude Models =====
@@ -66,17 +67,27 @@ export const MODELS: ModelDefinition[] = [
     reasoning: "full",
     aliases: ["claude-sonnet-4.6", "sonnet"],
   },
+  {
+    id: "claude-haiku-4-5-20251001",
+    family: "claude",
+    displayName: "Claude Haiku 4.5",
+    version: "4.5",
+    limit: { context: 200000, output: 8192 },
+    modalities: { input: ["text", "image"], output: ["text"] },
+    reasoning: "basic",
+    aliases: ["claude-haiku", "haiku"],
+  },
 
   // ===== Codex / GPT Models =====
   {
-    id: "gpt-5.3-codex-high",
+    id: "gpt-5-codex-high",
     family: "codex",
-    displayName: "GPT-5.3 Codex High",
-    version: "5.3",
+    displayName: "GPT-5 Codex High",
+    version: "5",
     limit: { context: 400000, output: 128000 },
     modalities: { input: ["text", "image"], output: ["text"] },
     reasoning: "xhigh",
-    aliases: ["gpt 5.3 codex", "codex"],
+    aliases: ["gpt 5 codex high", "codex-high", "codex"],
   },
   {
     id: "gpt-5.4",
@@ -98,17 +109,49 @@ export const MODELS: ModelDefinition[] = [
     reasoning: "xhigh",
     aliases: ["gpt 5.2"],
   },
-
-  // ===== Gemini Models =====
   {
-    id: "gemini-3.1-pro-preview",
-    family: "gemini",
-    displayName: "Gemini 3.1 Pro Preview",
-    version: "3.1",
-    limit: { context: 1048576, output: 65536 },
+    id: "o4-mini",
+    family: "codex",
+    displayName: "O4 Mini",
+    version: "4",
+    limit: { context: 200000, output: 100000 },
     modalities: { input: ["text", "image"], output: ["text"] },
     reasoning: "full",
-    aliases: ["gemini-3.1-pro", "gemini 3.1 pro", "gemini"],
+    aliases: ["o4 mini"],
+  },
+
+  // ===== DeepSeek Models =====
+  {
+    id: "deepseek-r1",
+    family: "deepseek",
+    displayName: "DeepSeek R1",
+    version: "r1",
+    limit: { context: 128000, output: 64000 },
+    modalities: { input: ["text"], output: ["text"] },
+    reasoning: "full",
+    aliases: ["deepseek r1"],
+  },
+  {
+    id: "deepseek-v3",
+    family: "deepseek",
+    displayName: "DeepSeek V3",
+    version: "v3",
+    limit: { context: 128000, output: 64000 },
+    modalities: { input: ["text"], output: ["text"] },
+    reasoning: "basic",
+    aliases: ["deepseek v3"],
+  },
+
+  // ===== Grok Models =====
+  {
+    id: "grok-4",
+    family: "grok",
+    displayName: "Grok 4",
+    version: "4",
+    limit: { context: 200000, output: 100000 },
+    modalities: { input: ["text", "image"], output: ["text"] },
+    reasoning: "full",
+    aliases: ["grok 4"],
   },
 ]
 
@@ -200,7 +243,8 @@ export function resolveApiKeyForFamily(
   const envMap: Record<ModelFamily, string> = {
     claude: "NEWCLAW_CLAUDE_API_KEY",
     codex: "NEWCLAW_CODEX_API_KEY",
-    gemini: "NEWCLAW_GEMINI_API_KEY",
+    deepseek: "NEWCLAW_DEEPSEEK_API_KEY",
+    grok: "NEWCLAW_GROK_API_KEY",
   }
   const envKey = process.env[envMap[family]]
   if (envKey?.trim()) return envKey.trim()
@@ -213,6 +257,7 @@ export function resolveApiKeyForFamily(
 export function detectFamily(modelId: string): ModelFamily {
   const id = modelId.toLowerCase()
   if (id.startsWith("claude-")) return "claude"
-  if (id.startsWith("gemini-")) return "gemini"
+  if (id.startsWith("deepseek-")) return "deepseek"
+  if (id.startsWith("grok-")) return "grok"
   return "codex"
 }

@@ -1,13 +1,12 @@
 /**
  * @file provider.ts
  * @input  Provider settings (apiKey, baseURL, headers)
- * @output Multi-provider language model factory (OpenAI/Anthropic/Google)
+ * @output Multi-provider language model factory (OpenAI/Anthropic)
  * @pos    Core provider - routes model requests to appropriate SDK
  */
 
 import type { LanguageModelV2 } from "@ai-sdk/provider"
 import { createAnthropic } from "@ai-sdk/anthropic"
-import { createGoogleGenerativeAI } from "@ai-sdk/google"
 import { createOpenAI } from "@ai-sdk/openai"
 import type { FetchFunction } from "@ai-sdk/provider-utils"
 
@@ -17,11 +16,6 @@ export type NewclawProviderSettings = {
   headers?: Record<string, string>
   fetch?: FetchFunction
   anthropic?: {
-    apiKey?: string
-    baseURL?: string
-    headers?: Record<string, string>
-  }
-  google?: {
     apiKey?: string
     baseURL?: string
     headers?: Record<string, string>
@@ -36,7 +30,6 @@ export interface NewclawProvider {
 }
 
 const isClaude = (modelId: string) => modelId.startsWith("claude-")
-const isGemini = (modelId: string) => modelId.startsWith("gemini-")
 const isResponses = (modelId: string) => modelId.startsWith("gpt-") || modelId.startsWith("codex")
 
 const normalizeModelId = (modelId: string) => String(modelId).trim()
@@ -60,17 +53,9 @@ export function createNewclaw(options: NewclawProviderSettings = {}): NewclawPro
     fetch: options.fetch,
   })
 
-  const google = createGoogleGenerativeAI({
-    apiKey: options.google?.apiKey ?? options.apiKey ?? "placeholder-key-replaced-by-fetch-hook",
-    baseURL: options.google?.baseURL ?? options.baseURL,
-    headers: options.google?.headers ?? options.headers,
-    fetch: options.fetch,
-  })
-
   const createModel = (modelId: string) => {
     const id = normalizeModelId(modelId)
     if (isClaude(id)) return anthropic.languageModel(id)
-    if (isGemini(id)) return google.languageModel(id)
     if (isResponses(id) && typeof openai.responses === "function") return openai.responses(id)
     return openaiLanguageModel(id)
   }
@@ -80,12 +65,11 @@ export function createNewclaw(options: NewclawProviderSettings = {}): NewclawPro
   provider.chat = (modelId: string) => {
     const id = normalizeModelId(modelId)
     if (isClaude(id)) return anthropic.languageModel(id)
-    if (isGemini(id)) return google.languageModel(id)
     return openaiChatModel(id)
   }
   provider.responses = (modelId: string) => {
     const id = normalizeModelId(modelId)
-    if (isClaude(id) || isGemini(id)) return provider.chat(id)
+    if (isClaude(id)) return provider.chat(id)
     return openai.responses(id)
   }
 
