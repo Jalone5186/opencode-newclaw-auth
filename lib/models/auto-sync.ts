@@ -221,6 +221,7 @@ async function fetchModelsFromApi(apiKey?: string): Promise<ApiModel[] | undefin
 
 /**
  * Read the API key from auth.json for model sync.
+ * OpenCode stores auth in ~/.local/share/opencode/auth.json (XDG_DATA_HOME).
  * Falls back to env var NEWCLAW_API_KEY.
  */
 async function getApiKey(): Promise<string | undefined> {
@@ -228,17 +229,23 @@ async function getApiKey(): Promise<string | undefined> {
   const envKey = process.env.NEWCLAW_API_KEY
   if (envKey?.trim()) return envKey.trim()
 
-  // Try auth.json
-  try {
-    const configRoot = process.env.XDG_CONFIG_HOME || path.join(homeDir, ".config")
-    const authPath = path.join(configRoot, "opencode", "auth.json")
-    const raw = await readFile(authPath, "utf-8")
-    const auth = JSON.parse(raw)
-    // auth.json structure: { "newclaw": { "type": "api", "key": "sk-..." } }
-    const newclawAuth = auth?.[PROVIDER_ID] ?? auth?.newclaw
-    if (newclawAuth?.key?.trim()) return newclawAuth.key.trim()
-  } catch {
-    // No auth.json or can't parse
+  // Try auth.json (OpenCode stores it in XDG_DATA_HOME, not XDG_CONFIG_HOME)
+  const dataDirs = [
+    process.env.XDG_DATA_HOME || path.join(homeDir, ".local", "share"),
+    process.env.XDG_CONFIG_HOME || path.join(homeDir, ".config"),
+  ]
+
+  for (const dataDir of dataDirs) {
+    try {
+      const authPath = path.join(dataDir, "opencode", "auth.json")
+      const raw = await readFile(authPath, "utf-8")
+      const auth = JSON.parse(raw)
+      // auth.json structure: { "newclaw": { "type": "api", "key": "sk-..." } }
+      const newclawAuth = auth?.[PROVIDER_ID] ?? auth?.newclaw
+      if (newclawAuth?.key?.trim()) return newclawAuth.key.trim()
+    } catch {
+      // auth.json not found in this location, try next
+    }
   }
 
   return undefined

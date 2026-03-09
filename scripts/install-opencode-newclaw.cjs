@@ -254,12 +254,18 @@ async function syncModelsFromApi() {
   try {
     var apiKey = process.env.NEWCLAW_API_KEY;
     if (!apiKey) {
-      try {
-        var authPath = path.join(configDir, "auth.json");
-        var authData = JSON.parse(await readFile(authPath, "utf-8"));
-        var newclawAuth = authData && (authData[PROVIDER_ID] || authData.newclaw);
-        if (newclawAuth && newclawAuth.key) apiKey = newclawAuth.key.trim();
-      } catch { /* no auth available */ }
+      var dataDirs = [
+        process.env.XDG_DATA_HOME || path.join(home, ".local", "share"),
+        process.env.XDG_CONFIG_HOME || path.join(home, ".config"),
+      ];
+      for (var i = 0; i < dataDirs.length; i++) {
+        try {
+          var authPath = path.join(dataDirs[i], "opencode", "auth.json");
+          var authData = JSON.parse(await readFile(authPath, "utf-8"));
+          var newclawAuth = authData && (authData[PROVIDER_ID] || authData.newclaw);
+          if (newclawAuth && newclawAuth.key) { apiKey = newclawAuth.key.trim(); break; }
+        } catch { /* try next location */ }
+      }
     }
 
     if (!apiKey) {

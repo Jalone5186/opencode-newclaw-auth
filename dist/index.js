@@ -937,15 +937,20 @@ async function getApiKey() {
   const envKey = process.env.NEWCLAW_API_KEY;
   if (envKey?.trim())
     return envKey.trim();
-  try {
-    const configRoot2 = process.env.XDG_CONFIG_HOME || path2.join(homeDir2, ".config");
-    const authPath = path2.join(configRoot2, "opencode", "auth.json");
-    const raw = await readFile2(authPath, "utf-8");
-    const auth = JSON.parse(raw);
-    const newclawAuth = auth?.[PROVIDER_ID3] ?? auth?.newclaw;
-    if (newclawAuth?.key?.trim())
-      return newclawAuth.key.trim();
-  } catch {}
+  const dataDirs = [
+    process.env.XDG_DATA_HOME || path2.join(homeDir2, ".local", "share"),
+    process.env.XDG_CONFIG_HOME || path2.join(homeDir2, ".config")
+  ];
+  for (const dataDir of dataDirs) {
+    try {
+      const authPath = path2.join(dataDir, "opencode", "auth.json");
+      const raw = await readFile2(authPath, "utf-8");
+      const auth = JSON.parse(raw);
+      const newclawAuth = auth?.[PROVIDER_ID3] ?? auth?.newclaw;
+      if (newclawAuth?.key?.trim())
+        return newclawAuth.key.trim();
+    } catch {}
+  }
   return;
 }
 async function syncModelsFromApi() {
