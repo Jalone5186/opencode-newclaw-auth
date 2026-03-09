@@ -1100,6 +1100,9 @@ var applyProviderConfig = (config) => {
   const providerMap = config.provider && typeof config.provider === "object" ? config.provider : {};
   const existingProvider = providerMap[PROVIDER_ID];
   const standardProvider = buildStandardProviderConfig();
+  if (existingProvider && typeof existingProvider === "object" && existingProvider.models) {
+    standardProvider.models = existingProvider.models;
+  }
   if (!deepEqual(existingProvider, standardProvider)) {
     providerMap[PROVIDER_ID] = standardProvider;
     config.provider = providerMap;
