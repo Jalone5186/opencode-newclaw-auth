@@ -7,11 +7,11 @@
 ## 项目概述
 
 - **项目名称**: `opencode-newclaw-auth`
-- **类型**: OpenCode 插件（不是 Claude Code CLI 或 Gemini CLI 的插件）
-- **用途**: 通过 NewClaw API 聚合服务 (`https://newclaw.ai/`) 让 OpenCode 用户访问 Claude、Codex、Gemini 模型
+- **类型**: OpenCode 插件（不是 Claude Code CLI 或其他 CLI 的插件）
+- **用途**: 通过 NewClaw API 聚合服务 (`https://newclaw.ai/`) 让 OpenCode 用户访问 Claude、Codex、DeepSeek、Grok 模型
 - **参考项目**: [opencode-aicodewith-auth](https://github.com/DaneelOlivaw1/opencode-aicodewith-auth) — 同类型插件，为 AICodewith 服务
 - **API 文档**: https://newclaw.apifox.cn/
-- **技术栈**: TypeScript, Bun, AI SDK (@ai-sdk/anthropic, @ai-sdk/google, @ai-sdk/openai)
+- **技术栈**: TypeScript, Bun, AI SDK (@ai-sdk/anthropic, @ai-sdk/openai)
 - **构建**: `bun run build` → `dist/index.js` + `dist/provider.js`
 
 ---
@@ -21,7 +21,7 @@
 ```
 opencode-newclaw-auth/
 ├── index.ts                    # 插件入口：auth hook, loader(自定义fetch), config注入
-├── provider.ts                 # 多供应商工厂：路由到 OpenAI/Anthropic/Google AI SDK
+├── provider.ts                 # 多供应商工厂：路由到 OpenAI/Anthropic AI SDK
 ├── lib/
 │   ├── constants.ts            # 全局常量：URL、请求头、Provider ID
 │   ├── types.ts                # 共享 TypeScript 接口
@@ -59,8 +59,8 @@ opencode-newclaw-auth/
 | `NEWCLAW_API_KEY` | 统一 Key，一键配置所有模型 |
 | `NEWCLAW_CLAUDE_API_KEY` | Claude 模型专用 Key |
 | `NEWCLAW_CODEX_API_KEY` | Codex/GPT 模型专用 Key |
-| `NEWCLAW_GEMINI_API_KEY` | Gemini 模型专用 Key |
-
+| `NEWCLAW_DEEPSEEK_API_KEY` | DeepSeek 模型专用 Key |
+| `NEWCLAW_GROK_API_KEY` | Grok 模型专用 Key |
 实现位置: `lib/models/registry.ts` → `resolveApiKeyForFamily()`
 
 ### 2. Fetch 拦截机制
@@ -76,10 +76,11 @@ opencode-newclaw-auth/
 
 ```
 用户请求 → OpenCode → auth.loader 返回的自定义 fetch →
-  ├── gpt-*/codex-* → CODEX_BASE_URL + createNewclawHeaders + transformRequestForCodex
-  ├── claude-*      → NEWCLAW_ANTHROPIC_BASE_URL + x-api-key + transformClaudeRequest/Response
-  ├── gemini-*      → NEWCLAW_GEMINI_BASE_URL + Bearer token
-  └── 其他          → NEWCLAW_BASE_URL + createNewclawHeaders (兜底)
+  ├── gpt-*/codex-*/o4-* → CODEX_BASE_URL + createNewclawHeaders + transformRequestForCodex
+  ├── claude-*          → NEWCLAW_ANTHROPIC_BASE_URL + x-api-key + transformClaudeRequest/Response
+  ├── deepseek-*        → NEWCLAW_BASE_URL + Bearer token
+  ├── grok-*            → NEWCLAW_BASE_URL + Bearer token
+  └── 其他              → NEWCLAW_BASE_URL + createNewclawHeaders (兆底)
 ```
 
 ### 4. URL 重写
@@ -91,14 +92,17 @@ opencode-newclaw-auth/
 ## 支持的模型
 
 | 模型 ID | 家族 | 显示名称 |
-|---------|------|---------|
+||---------|------|---------|
 | `claude-opus-4-6` | claude | Claude Opus 4.6 |
 | `claude-sonnet-4-6` | claude | Claude Sonnet 4.6 |
-| `gpt-5.3-codex-high` | codex | GPT-5.3 Codex High |
+| `claude-haiku-4-5-20251001` | claude | Claude Haiku 4.5 |
+| `gpt-5-codex-high` | codex | GPT-5 Codex High |
 | `gpt-5.4` | codex | GPT-5.4 |
 | `gpt-5.2` | codex | GPT-5.2 |
-| `gemini-3.1-pro-preview` | gemini | Gemini 3.1 Pro Preview |
-
+| `o4-mini` | codex | O4 Mini |
+| `deepseek-r1` | deepseek | DeepSeek R1 |
+| `deepseek-v3` | deepseek | DeepSeek V3 |
+| `grok-4` | grok | Grok 4 |
 模型注册表位于 `lib/models/registry.ts`，是所有配置的单一数据源。
 
 ---
@@ -109,7 +113,6 @@ opencode-newclaw-auth/
 |------|-----|
 | 统一基础 URL | `https://newclaw.ai/v1` |
 | Anthropic 端点 | `https://newclaw.ai/v1` |
-| Gemini 端点 | `https://newclaw.ai/v1` |
 | Codex 端点 | `https://newclaw.ai/v1` |
 
 所有端点都指向同一个 NewClaw 网关，由网关内部路由到不同的上游 API。
@@ -126,20 +129,22 @@ opencode-newclaw-auth/
 
 ---
 
-1. **这是 OpenCode 插件**，不是 Claude Code CLI 或 Gemini CLI 的插件
+1. **这是 OpenCode 插件**，不是 Claude Code CLI 或其他 CLI 的插件
 2. **postinstall 脚本**使用 CommonJS (.cjs) + node 执行，兼容无 bun 环境
 3. **Claude 工具前缀**: `claude-tools-transform.ts` 给工具名加 `mcp_` 前缀（带防重复检查）
 4. **Plugin 类型**: `Plugin = (input: PluginInput) => Promise<Hooks>`，必须是 async 函数
 5. **Auth 方法类型**: 必须是 `"api"`（不是 `"custom"`），配合 `prompts` 和 `authorize` 使用
-6. **Gemini 请求**: 使用专用 headers (x-goog-api-key, x-goog-api-client) 和 URL 构建器 (buildGeminiUrl)
-7. **oh-my-opencode 集成**: 可选，安装后自动同步 OMO 配置到 `~/.config/opencode/oh-my-opencode.json`
+6. **oh-my-opencode 集成**: 可选，安装后自动同步 OMO 配置到 `~/.config/opencode/oh-my-opencode.json`
 ---
-## 版本历史
+- **v0.3.0** (2026-03-09): 清理 Gemini、升级版本
+  - 移除所有 Gemini 相关代码和 @ai-sdk/google 依赖
+  - 添加 DeepSeek、Grok 模型支持
+  - 实现模型列表自动同步（启动时同步调 API + 24h 缓存）
+  - 扩充模型注册表至 10 个模型
+  - 更新文档为傻瓜式一键安装教程（macOS/Windows/Linux）
 - **v0.2.0** (2026-03-06): 全面优化
   - 修复 postinstall 使用绝对路径导致跨机器安装失败的 bug
   - 修复 postinstall 依赖 bun 的问题，改用 node + CommonJS
-  - 添加 Gemini 专用 URL 构建器 (buildGeminiUrl + ensureGeminiSseParam)
-  - 添加 Gemini 专用请求头 (x-goog-api-key, x-goog-api-client, User-Agent)
   - 添加 normalizeOrphanedToolOutputs 防止孤立工具输出导致 API 报错
   - 修复 Claude 工具前缀双重应用 bug（添加 startsWith 检查）
   - 修复 rewriteUrl 缺少 try/catch 导致异常 URL 崩溃
@@ -151,6 +156,6 @@ opencode-newclaw-auth/
   - 添加 README 常见问题排查
 - **v0.1.0** (2026-03-06): 初始版本
   - 基于 opencode-aicodewith-auth 参考项目构建
-  - 支持 Claude Code、Codex、Gemini 三大模型家族
+  - 支持 Claude Code、Codex 模型家族
   - 实现统一 Key + 按厂商独立 Key 双模式
   - TypeScript 零错误，构建通过

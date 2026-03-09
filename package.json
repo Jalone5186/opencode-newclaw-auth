@@ -1,6 +1,6 @@
 {
   "name": "opencode-newclaw-auth",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "OpenCode plugin for NewClaw authentication - Access Claude, Codex, DeepSeek, and Grok models through NewClaw API with per-model or unified key support",
   "type": "module",
   "main": "dist/index.js",

@@ -53,7 +53,7 @@ export const MODELS: ModelDefinition[] = [
 | 字段 | 说明 | 示例 |
 |------|------|------|
 | `id` | 模型 ID（必须与 NewClaw API 的模型名一致） | `"grok-2"` |
-| `family` | 模型家族（决定使用哪个 SDK） | `"codex"` / `"claude"` / `"gemini"` |
+| `family` | 模型家族（决定使用哪个 SDK） | `"codex"` / `"claude"` / `"deepseek"` / `"grok"` |
 | `displayName` | 显示名称 | `"Grok 2"` |
 | `version` | 版本号 | `"2.0"` |
 | `limit.context` | 上下文窗口大小（tokens） | `128000` |
@@ -108,8 +108,8 @@ export const MODELS: ModelDefinition[] = [
 export const PER_PROVIDER_KEY_ENV = {
   CLAUDE: "NEWCLAW_CLAUDE_API_KEY",
   CODEX: "NEWCLAW_CODEX_API_KEY",
-  GEMINI: "NEWCLAW_GEMINI_API_KEY",
-  GROK: "NEWCLAW_GROK_API_KEY",  // 新增
+  DEEPSEEK: "NEWCLAW_DEEPSEEK_API_KEY",
+  GROK: "NEWCLAW_GROK_API_KEY",
 } as const
 ```
 
@@ -119,8 +119,8 @@ export const PER_PROVIDER_KEY_ENV = {
 export function detectFamily(modelId: string): ModelFamily {
   const id = modelId.toLowerCase()
   if (id.startsWith("claude-")) return "claude"
-  if (id.startsWith("gemini-")) return "gemini"
-  if (id.startsWith("grok-")) return "grok"  // 新增
+  if (id.startsWith("deepseek-")) return "deepseek"
+  if (id.startsWith("grok-")) return "grok"
   return "codex"
 }
 ```
@@ -135,8 +135,8 @@ export function resolveApiKeyForFamily(
   const envMap: Record<ModelFamily, string> = {
     claude: "NEWCLAW_CLAUDE_API_KEY",
     codex: "NEWCLAW_CODEX_API_KEY",
-    gemini: "NEWCLAW_GEMINI_API_KEY",
-    grok: "NEWCLAW_GROK_API_KEY",  // 新增
+    deepseek: "NEWCLAW_DEEPSEEK_API_KEY",
+    grok: "NEWCLAW_GROK_API_KEY",
   }
   const envKey = process.env[envMap[family]]
   if (envKey?.trim()) return envKey.trim()
@@ -235,7 +235,7 @@ opencode --model newclaw/qwen-max
 编辑 `lib/models/registry.ts`：
 
 ```typescript
-export type ModelFamily = "codex" | "claude" | "gemini" | "custom"  // 添加 "custom"
+export type ModelFamily = "codex" | "claude" | "deepseek" | "grok" | "custom"  // 添加 "custom"
 ```
 
 #### 2. 在 index.ts 中添加检测和处理逻辑
@@ -285,7 +285,8 @@ const buildCustomUrl = (originalUrl: string, modelId: string) => {
 
 - **OpenAI 兼容**（支持 `/v1/chat/completions` 端点）→ `"codex"`
 - **Anthropic 兼容**（支持 `/v1/messages` 端点）→ `"claude"`
-- **Google Gemini 兼容** → `"gemini"`
+- **DeepSeek 兼容**（支持 `/v1/chat/completions` 端点）→ `"deepseek"`
+- **Grok 兼容**（支持 `/v1/chat/completions` 端点）→ `"grok"`
 - **完全自定义** → 添加新的 family 类型并实现专用处理逻辑
 
 ### Q: 如何测试新添加的模型？
