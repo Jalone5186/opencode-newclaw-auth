@@ -71,10 +71,9 @@
 ⚠️ **重要提示**：插件必须安装到 `~/.cache/opencode/` 目录下，否则无法正确加载。请根据你的操作系统，复制下方的**一键安装命令**并执行。
 
 ### macOS / Linux
-请在终端中复制粘贴并运行以下完整命令：
+请在终端中复制粘贴并运行以下完整命令（含 oh-my-opencode AI 代理编排框架）：
 
 ```bash
-# 一键安装（复制粘贴即可，含 oh-my-opencode AI 代理编排框架）
 npm install -g opencode-ai && \
 opencode --version && \
 cd ~/.cache/opencode && \
@@ -84,10 +83,9 @@ echo "✅ 安装完成！运行 opencode 启动"
 ```
 
 ### Windows (PowerShell)
-请在 PowerShell 中复制粘贴并运行以下完整命令（注意缓存目录会自动识别）：
+请在 PowerShell 中复制粘贴并运行以下完整命令（含 oh-my-opencode AI 代理编排框架，缓存目录自动识别）：
 
 ```powershell
-# 一键安装（复制粘贴即可，含 oh-my-opencode AI 代理编排框架）
 npm install -g opencode-ai; `
 opencode --version; `
 cd "$env:LOCALAPPDATA\opencode"; `
