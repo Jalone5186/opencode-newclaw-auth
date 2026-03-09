@@ -493,6 +493,28 @@ var provider_config_default = {
         output: ["text"]
       }
     },
+    "gpt-5.3-codex": {
+      name: "GPT-5.3 Codex",
+      limit: {
+        context: 400000,
+        output: 128000
+      },
+      modalities: {
+        input: ["text", "image"],
+        output: ["text"]
+      }
+    },
+    "gpt-5.3-codex-high": {
+      name: "GPT-5.3 Codex High",
+      limit: {
+        context: 400000,
+        output: 128000
+      },
+      modalities: {
+        input: ["text", "image"],
+        output: ["text"]
+      }
+    },
     "gpt-5.4": {
       name: "GPT-5.4",
       limit: {

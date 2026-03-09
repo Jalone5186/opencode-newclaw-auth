@@ -56,6 +56,8 @@
 | `newclaw/claude-sonnet-4-6` | Claude Sonnet 4.6 | ✅ | 日常编程、快速响应 |
 | `newclaw/claude-haiku-4-5-20251001` | Claude Haiku 4.5 | ✅ | 轻量任务、低成本 |
 | `newclaw/gpt-5-codex-high` | GPT-5 Codex High | ✅ | 代码生成、高推理 |
+| `newclaw/gpt-5.3-codex` | GPT-5.3 Codex | ✅ | 代码生成 |
+| `newclaw/gpt-5.3-codex-high` | GPT-5.3 Codex High | ✅ | 代码生成、高推理 |
 | `newclaw/gpt-5.4` | GPT-5.4 | ✅ | 高级推理、复杂逻辑 |
 | `newclaw/gpt-5.2` | GPT-5.2 | ✅ | 架构设计、逻辑推理 |
 | `newclaw/o4-mini` | O4 Mini | ✅ | 快速推理、低成本 |
@@ -141,15 +143,24 @@ opencode auth login
 | `NEWCLAW_GEMINI_API_KEY` | Gemini 专用 Key |
 
 **macOS / Linux** — 复制以下命令执行（请将 `sk-xxx` 替换为你的实际 Key）：
+
+配置一条：
 ```bash
 echo 'export NEWCLAW_CLAUDE_API_KEY="sk-xxx"' >> ~/.zshrc && source ~/.zshrc
 ```
 
+同时配置多条：
+```bash
+echo -e 'export NEWCLAW_CLAUDE_API_KEY="sk-claude-key"\nexport NEWCLAW_DEEPSEEK_API_KEY="sk-deepseek-key"\nexport NEWCLAW_GEMINI_API_KEY="sk-gemini-key"' >> ~/.zshrc && source ~/.zshrc
+```
+
 > 如果你用的是 bash 而不是 zsh，把上面的 `.zshrc` 换成 `.bashrc`。
 
-**Windows (PowerShell)** — 复制以下命令执行（请将 `sk-xxx` 替换为你的实际 Key）：
+**Windows (PowerShell)** — 复制以下命令执行（请将 `sk-xxx` 替换为你的实际 Key），多条直接换行即可：
 ```powershell
-[Environment]::SetEnvironmentVariable("NEWCLAW_CLAUDE_API_KEY", "sk-xxx", "User")
+[Environment]::SetEnvironmentVariable("NEWCLAW_CLAUDE_API_KEY", "sk-claude-key", "User")
+[Environment]::SetEnvironmentVariable("NEWCLAW_DEEPSEEK_API_KEY", "sk-deepseek-key", "User")
+[Environment]::SetEnvironmentVariable("NEWCLAW_GEMINI_API_KEY", "sk-gemini-key", "User")
 ```
 设置后重新打开 PowerShell 窗口即可生效。
 

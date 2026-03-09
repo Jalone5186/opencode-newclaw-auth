@@ -27,6 +27,8 @@ const MODEL_CONFIGS = {
   "claude-sonnet-4-6": { name: "Claude Sonnet 4.6", modalities: IMAGE_MODALITIES },
   "claude-haiku-4-5-20251001": { name: "Claude Haiku 4.5", modalities: IMAGE_MODALITIES },
   "gpt-5-codex-high": { name: "GPT-5 Codex High", modalities: IMAGE_MODALITIES },
+  "gpt-5.3-codex": { name: "GPT-5.3 Codex", modalities: IMAGE_MODALITIES },
+  "gpt-5.3-codex-high": { name: "GPT-5.3 Codex High", modalities: IMAGE_MODALITIES },
   "gpt-5.4": { name: "GPT-5.4", modalities: IMAGE_MODALITIES },
   "gpt-5.2": { name: "GPT-5.2", modalities: IMAGE_MODALITIES },
   "o4-mini": { name: "O4 Mini", modalities: IMAGE_MODALITIES },
