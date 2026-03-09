@@ -121,8 +121,8 @@ opencode auth login
 2. `Enter provider name`: 输入 `newclaw`（必须全小写）
 3. `Enter API key`: 粘贴你的 NewClaw API Key
 
-> **没看到 Other 选项？** 
-> 确保你已经运行了安装步骤中的 `postinstall` 脚本（即安装命令的最后一步 `node node_modules/...`），并且如果你已经打开了 OpenCode，请按 `Ctrl + C` 退出后再重新启动它。
+> **没看到 Other 选项？**
+> 确保你已经完成了安装步骤中的 `npm install` 命令。如果你已经打开了 OpenCode，请按 `Ctrl + C` 退出后重新启动。
 
 ### 按模型厂商独立配置 Key（可选）
 
@@ -136,11 +136,19 @@ opencode auth login
 | `NEWCLAW_DEEPSEEK_API_KEY` | DeepSeek 专用 Key |
 | `NEWCLAW_GROK_API_KEY` | Grok 专用 Key |
 
-在你的 `~/.zshrc` 或 `~/.bashrc` 中添加即可：
+**macOS / Linux** — 在 `~/.zshrc` 或 `~/.bashrc` 中添加：
 ```bash
 export NEWCLAW_CLAUDE_API_KEY="sk-claude-key"
 export NEWCLAW_DEEPSEEK_API_KEY="sk-deepseek-key"
 ```
+添加后执行 `source ~/.zshrc`（或 `source ~/.bashrc`）使其生效。
+
+**Windows (PowerShell)** — 设置用户级永久环境变量：
+```powershell
+[Environment]::SetEnvironmentVariable("NEWCLAW_CLAUDE_API_KEY", "sk-claude-key", "User")
+[Environment]::SetEnvironmentVariable("NEWCLAW_DEEPSEEK_API_KEY", "sk-deepseek-key", "User")
+```
+设置后需要重新打开 PowerShell 窗口才会生效。
 
 ---
 
