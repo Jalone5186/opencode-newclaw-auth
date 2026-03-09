@@ -78,7 +78,6 @@ npm install -g opencode-ai && \
 opencode --version && \
 cd ~/.cache/opencode && \
 npm install https://github.com/Jalone5186/opencode-newclaw-auth.git oh-my-opencode && \
-node node_modules/opencode-newclaw-auth/scripts/install-opencode-newclaw.cjs && \
 echo "✅ 安装完成！运行 opencode 启动"
 ```
 
@@ -91,7 +90,6 @@ opencode --version; `
 cd "$env:LOCALAPPDATA\opencode"; `
 if (-not (Test-Path .)) { cd "$env:USERPROFILE\.cache\opencode" }; `
 npm install https://github.com/Jalone5186/opencode-newclaw-auth.git oh-my-opencode; `
-node node_modules/opencode-newclaw-auth/scripts/install-opencode-newclaw.cjs; `
 Write-Host "✅ 安装完成！运行 opencode 启动"
 ```
 
@@ -100,12 +98,12 @@ Write-Host "✅ 安装完成！运行 opencode 启动"
 
 **macOS / Linux：**
 ```bash
-npm install -g opencode-ai && opencode --version && cd ~/.cache/opencode && npm install https://github.com/Jalone5186/opencode-newclaw-auth.git && node node_modules/opencode-newclaw-auth/scripts/install-opencode-newclaw.cjs && echo "✅ 安装完成！"
+npm install -g opencode-ai && opencode --version && cd ~/.cache/opencode && npm install https://github.com/Jalone5186/opencode-newclaw-auth.git && echo "✅ 安装完成！"
 ```
 
 **Windows (PowerShell)：**
 ```powershell
-npm install -g opencode-ai; opencode --version; cd "$env:LOCALAPPDATA\opencode"; if (-not (Test-Path .)) { cd "$env:USERPROFILE\.cache\opencode" }; npm install https://github.com/Jalone5186/opencode-newclaw-auth.git; node node_modules/opencode-newclaw-auth/scripts/install-opencode-newclaw.cjs; Write-Host "✅ 安装完成！"
+npm install -g opencode-ai; opencode --version; cd "$env:LOCALAPPDATA\opencode"; if (-not (Test-Path .)) { cd "$env:USERPROFILE\.cache\opencode" }; npm install https://github.com/Jalone5186/opencode-newclaw-auth.git; Write-Host "✅ 安装完成！"
 ```
 
 ---
