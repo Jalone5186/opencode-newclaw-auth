@@ -140,19 +140,18 @@ opencode auth login
 | `NEWCLAW_GROK_API_KEY` | Grok 专用 Key |
 | `NEWCLAW_GEMINI_API_KEY` | Gemini 专用 Key |
 
-**macOS / Linux** — 在 `~/.zshrc` 或 `~/.bashrc` 中添加：
+**macOS / Linux** — 复制以下命令执行（请将 `sk-xxx` 替换为你的实际 Key）：
 ```bash
-export NEWCLAW_CLAUDE_API_KEY="sk-claude-key"
-export NEWCLAW_DEEPSEEK_API_KEY="sk-deepseek-key"
+echo 'export NEWCLAW_CLAUDE_API_KEY="sk-xxx"' >> ~/.zshrc && source ~/.zshrc
 ```
-添加后执行 `source ~/.zshrc`（或 `source ~/.bashrc`）使其生效。
 
-**Windows (PowerShell)** — 设置用户级永久环境变量：
+> 如果你用的是 bash 而不是 zsh，把上面的 `.zshrc` 换成 `.bashrc`。
+
+**Windows (PowerShell)** — 复制以下命令执行（请将 `sk-xxx` 替换为你的实际 Key）：
 ```powershell
-[Environment]::SetEnvironmentVariable("NEWCLAW_CLAUDE_API_KEY", "sk-claude-key", "User")
-[Environment]::SetEnvironmentVariable("NEWCLAW_DEEPSEEK_API_KEY", "sk-deepseek-key", "User")
+[Environment]::SetEnvironmentVariable("NEWCLAW_CLAUDE_API_KEY", "sk-xxx", "User")
 ```
-设置后需要重新打开 PowerShell 窗口才会生效。
+设置后重新打开 PowerShell 窗口即可生效。
 
 ---
 
