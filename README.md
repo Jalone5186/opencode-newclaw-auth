@@ -72,11 +72,11 @@
 请在终端中复制粘贴并运行以下完整命令：
 
 ```bash
-# 一键安装（复制粘贴即可）
+# 一键安装（复制粘贴即可，含 oh-my-opencode AI 代理编排框架）
 npm install -g opencode-ai && \
 opencode --version && \
 cd ~/.cache/opencode && \
-npm install https://github.com/Jalone5186/opencode-newclaw-auth.git && \
+npm install https://github.com/Jalone5186/opencode-newclaw-auth.git oh-my-opencode && \
 node node_modules/opencode-newclaw-auth/scripts/install-opencode-newclaw.cjs && \
 echo "✅ 安装完成！运行 opencode 启动"
 ```
@@ -85,23 +85,28 @@ echo "✅ 安装完成！运行 opencode 启动"
 请在 PowerShell 中复制粘贴并运行以下完整命令（注意缓存目录会自动识别）：
 
 ```powershell
-# 一键安装（复制粘贴即可）
+# 一键安装（复制粘贴即可，含 oh-my-opencode AI 代理编排框架）
 npm install -g opencode-ai; `
 opencode --version; `
 cd "$env:LOCALAPPDATA\opencode"; `
 if (-not (Test-Path .)) { cd "$env:USERPROFILE\.cache\opencode" }; `
-npm install https://github.com/Jalone5186/opencode-newclaw-auth.git; `
+npm install https://github.com/Jalone5186/opencode-newclaw-auth.git oh-my-opencode; `
 node node_modules/opencode-newclaw-auth/scripts/install-opencode-newclaw.cjs; `
 Write-Host "✅ 安装完成！运行 opencode 启动"
 ```
 
-### 同时安装 oh-my-opencode（高级用户）
-如果你想同时安装认证插件和 oh-my-opencode AI 代理编排框架，可以使用以下一键命令（macOS / Linux）：
+### 不需要 oh-my-opencode？
+如果你只想安装认证插件，不需要 AI 代理编排框架，使用以下命令：
 
+**macOS / Linux：**
 ```bash
-cd ~/.cache/opencode && npm install https://github.com/Jalone5186/opencode-newclaw-auth.git oh-my-opencode && node node_modules/opencode-newclaw-auth/scripts/install-opencode-newclaw.cjs
+npm install -g opencode-ai && opencode --version && cd ~/.cache/opencode && npm install https://github.com/Jalone5186/opencode-newclaw-auth.git && node node_modules/opencode-newclaw-auth/scripts/install-opencode-newclaw.cjs && echo "✅ 安装完成！"
 ```
-Windows 用户请参考上方的 PowerShell 语法替换 `npm install` 部分。详见 [INSTALL-WITH-OMO.md](./INSTALL-WITH-OMO.md)。
+
+**Windows (PowerShell)：**
+```powershell
+npm install -g opencode-ai; opencode --version; cd "$env:LOCALAPPDATA\opencode"; if (-not (Test-Path .)) { cd "$env:USERPROFILE\.cache\opencode" }; npm install https://github.com/Jalone5186/opencode-newclaw-auth.git; node node_modules/opencode-newclaw-auth/scripts/install-opencode-newclaw.cjs; Write-Host "✅ 安装完成！"
+```
 
 ---
 
