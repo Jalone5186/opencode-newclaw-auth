@@ -4,7 +4,7 @@
 
 **OpenCode 的 NewClaw 认证插件**
 
-一个 API Key → 多模型可用（Claude Code、Codex、DeepSeek 等）
+一个 API Key → 多模型可用（Claude、GPT/Codex、Gemini、DeepSeek、Grok）
 
 支持按模型厂商配置不同 Key，也支持一键统一配置
 
@@ -41,7 +41,7 @@
 用户请求 → OpenCode → 插件认证钩子 → 按模型路由:
   ├── gpt-*/codex-*/o4-* → NewClaw Codex API
   ├── claude-*           → NewClaw Anthropic API
-  ├── gemini-*           → NewClaw Google API
+  ├── gemini-*           → NewClaw Gemini API (Google AI SDK)
   ├── deepseek-*         → NewClaw DeepSeek API
   └── grok-*             → NewClaw Grok API
 ```
@@ -64,10 +64,10 @@
 | `newclaw/deepseek-r1` | DeepSeek R1 | — 纯文本 | 数学推理、深度思考 |
 | `newclaw/deepseek-v3` | DeepSeek V3 | — 纯文本 | 通用编程 |
 | `newclaw/grok-4` | Grok 4 | ✅ | 通用推理 |
-| `newclaw/gemini-2.5-pro` | Gemini 2.5 Pro | ✅ | 长上下文、多模态 |
+| `newclaw/gemini-2.5-pro` | Gemini 2.5 Pro | ✅ | 深度推理、长上下文 |
 | `newclaw/gemini-2.5-flash` | Gemini 2.5 Flash | ✅ | 快速响应、低成本 |
 
-> 💡 以上是预置模型。插件每次启动时会自动从 API 同步最新模型列表，新模型无需手动更新。
+> 💡 以上是预置模型。插件每次启动时会自动从 NewClaw API 同步最新模型列表（目前支持 Claude、GPT/Codex、DeepSeek、Grok、Gemini 系列），新模型无需手动更新。
 
 ---
 
@@ -151,7 +151,7 @@ echo 'export NEWCLAW_CLAUDE_API_KEY="sk-xxx"' >> ~/.zshrc && source ~/.zshrc
 
 同时配置多条：
 ```bash
-echo -e 'export NEWCLAW_CLAUDE_API_KEY="sk-claude-key"\nexport NEWCLAW_DEEPSEEK_API_KEY="sk-deepseek-key"\nexport NEWCLAW_GEMINI_API_KEY="sk-gemini-key"' >> ~/.zshrc && source ~/.zshrc
+printf 'export NEWCLAW_CLAUDE_API_KEY="sk-claude-key"\nexport NEWCLAW_CODEX_API_KEY="sk-codex-key"\nexport NEWCLAW_GEMINI_API_KEY="sk-gemini-key"\n' >> ~/.zshrc && source ~/.zshrc
 ```
 
 > 如果你用的是 bash 而不是 zsh，把上面的 `.zshrc` 换成 `.bashrc`。
@@ -168,13 +168,15 @@ echo -e 'export NEWCLAW_CLAUDE_API_KEY="sk-claude-key"\nexport NEWCLAW_DEEPSEEK_
 
 ## 启动使用
 
-配置好 Key 后，你可以直接启动 OpenCode，或者在启动时指定模型：
+配置好 Key 后，你可以直接启动 OpenCode：
 
 ```bash
-# 默认启动
 opencode
+```
 
-# 指定模型启动
+也可以在启动时指定模型：
+
+```bash
 opencode --model newclaw/claude-opus-4-6
 ```
 
@@ -193,6 +195,9 @@ opencode --model newclaw/claude-opus-4-6
 ---
 
 ## 常见问题
+
+**Q: 首次安装后模型列表不完整？**
+这是正常现象。首次启动时，插件会从 API 同步最新模型列表并写入配置文件。由于 OpenCode 先读配置再加载插件，**第二次启动**后就能看到完整的模型列表了（之后每次启动都会自动更新）。
 
 **Q: 安装后还是提示 ProviderInitError?**
 这通常是因为插件没有安装在正确的目录下。请确保你是按照教程在 `~/.cache/opencode/` 目录下执行的安装命令，并且成功执行了 `postinstall` 脚本。

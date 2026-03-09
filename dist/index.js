@@ -1029,7 +1029,7 @@ async function updateConfigModels(newModels) {
 var CODEX_MODEL_PREFIXES = ["gpt-", "codex"];
 var PACKAGE_NAME2 = "opencode-newclaw-auth";
 var PLUGIN_ENTRY = PACKAGE_NAME2;
-var PROVIDER_NPM = `${PACKAGE_NAME2}/provider`;
+var PROVIDER_NPM = `file://${path3.resolve(import.meta.dirname, "provider.js")}`;
 var DEFAULT_OUTPUT_TOKEN_MAX = 32000;
 var homeDir3 = process.env.OPENCODE_TEST_HOME || os3.homedir();
 var configRoot2 = process.env.XDG_CONFIG_HOME || path3.join(homeDir3, ".config");

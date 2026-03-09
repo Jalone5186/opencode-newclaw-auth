@@ -40,7 +40,7 @@ import { syncModelsFromApi } from "./lib/models/auto-sync"
 const CODEX_MODEL_PREFIXES = ["gpt-", "codex"]
 const PACKAGE_NAME = "opencode-newclaw-auth"
 const PLUGIN_ENTRY = PACKAGE_NAME
-const PROVIDER_NPM = `${PACKAGE_NAME}/provider`
+const PROVIDER_NPM = `file://${path.resolve(import.meta.dirname, "provider.js")}`
 
 const DEFAULT_OUTPUT_TOKEN_MAX = 32000
 
