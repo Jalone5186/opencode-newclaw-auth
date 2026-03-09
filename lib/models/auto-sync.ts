@@ -201,6 +201,7 @@ async function fetchModelsFromApi(apiKey?: string): Promise<ApiModel[] | undefin
       clearTimeout(timeout)
 
       if (!response.ok) {
+        console.warn(`[${PACKAGE_NAME}] Model sync: API returned HTTP ${response.status}`)
         return undefined
       }
 
@@ -254,19 +255,25 @@ export async function syncModelsFromApi(): Promise<boolean> {
     // Get API key
     const apiKey = await getApiKey()
     if (!apiKey) {
-      // No API key available — can't fetch models
+      console.log(`[${PACKAGE_NAME}] Model sync skipped: no API key found (run 'opencode auth login' first)`)
       return false
     }
+
+    console.log(`[${PACKAGE_NAME}] Syncing models from NewClaw API...`)
 
     // Fetch from API (every startup, no cache)
     const apiModels = await fetchModelsFromApi(apiKey)
     if (!apiModels || apiModels.length === 0) {
+      console.warn(`[${PACKAGE_NAME}] Model sync: API returned no models (check network or API key)`)
       return false
     }
+
+    console.log(`[${PACKAGE_NAME}] API returned ${apiModels.length} models, filtering coding models...`)
 
     // Convert and update config
     const modelConfigs = apiModelsToConfig(apiModels)
     if (Object.keys(modelConfigs).length === 0) {
+      console.warn(`[${PACKAGE_NAME}] Model sync: no coding models found after filtering`)
       return false
     }
 

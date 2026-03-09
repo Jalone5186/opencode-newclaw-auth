@@ -263,9 +263,11 @@ async function syncModelsFromApi() {
     }
 
     if (!apiKey) {
-      console.log("[" + PACKAGE_NAME + "] No API key found, skipping model sync");
+      console.log("[" + PACKAGE_NAME + "] Model sync skipped: no API key found (run 'opencode auth login' first)");
       return;
     }
+
+    console.log("[" + PACKAGE_NAME + "] Syncing models from NewClaw API...");
 
     var https = require("node:https");
     var data = await new Promise(function (resolve) {
@@ -273,7 +275,11 @@ async function syncModelsFromApi() {
         headers: { "Authorization": "Bearer " + apiKey },
         timeout: API_TIMEOUT_MS,
       }, function (res) {
-        if (res.statusCode !== 200) { resolve(null); return; }
+        if (res.statusCode !== 200) {
+          console.warn("[" + PACKAGE_NAME + "] Model sync: API returned HTTP " + res.statusCode);
+          resolve(null);
+          return;
+        }
         var chunks = [];
         res.on("data", function (c) { chunks.push(c); });
         res.on("end", function () {
@@ -286,9 +292,11 @@ async function syncModelsFromApi() {
     });
 
     if (!data || !Array.isArray(data.data)) {
-      console.log("[" + PACKAGE_NAME + "] Could not fetch models from API");
+      console.warn("[" + PACKAGE_NAME + "] Model sync: API returned no models (check network or API key)");
       return;
     }
+
+    console.log("[" + PACKAGE_NAME + "] API returned " + data.data.length + " models, filtering coding models...");
 
     var newModels = {};
     data.data.forEach(function (m) {

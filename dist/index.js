@@ -918,6 +918,7 @@ async function fetchModelsFromApi(apiKey) {
       });
       clearTimeout(timeout);
       if (!response.ok) {
+        console.warn(`[${PACKAGE_NAME}] Model sync: API returned HTTP ${response.status}`);
         return;
       }
       const data = await response.json();
@@ -951,14 +952,19 @@ async function syncModelsFromApi() {
   try {
     const apiKey = await getApiKey();
     if (!apiKey) {
+      console.log(`[${PACKAGE_NAME}] Model sync skipped: no API key found (run 'opencode auth login' first)`);
       return false;
     }
+    console.log(`[${PACKAGE_NAME}] Syncing models from NewClaw API...`);
     const apiModels = await fetchModelsFromApi(apiKey);
     if (!apiModels || apiModels.length === 0) {
+      console.warn(`[${PACKAGE_NAME}] Model sync: API returned no models (check network or API key)`);
       return false;
     }
+    console.log(`[${PACKAGE_NAME}] API returned ${apiModels.length} models, filtering coding models...`);
     const modelConfigs = apiModelsToConfig(apiModels);
     if (Object.keys(modelConfigs).length === 0) {
+      console.warn(`[${PACKAGE_NAME}] Model sync: no coding models found after filtering`);
       return false;
     }
     return await updateConfigModels(modelConfigs);
