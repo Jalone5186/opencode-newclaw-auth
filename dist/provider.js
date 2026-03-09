@@ -2,7 +2,9 @@
 // provider.ts
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 var isClaude = (modelId) => modelId.startsWith("claude-");
+var isGemini = (modelId) => modelId.startsWith("gemini-");
 var isResponses = (modelId) => modelId.startsWith("gpt-") || modelId.startsWith("codex");
 var normalizeModelId = (modelId) => String(modelId).trim();
 function createNewclaw(options = {}) {
@@ -20,10 +22,18 @@ function createNewclaw(options = {}) {
     headers: options.anthropic?.headers ?? options.headers,
     fetch: options.fetch
   });
+  const google = createGoogleGenerativeAI({
+    apiKey: options.google?.apiKey ?? options.apiKey,
+    baseURL: options.google?.baseURL ?? options.baseURL,
+    headers: options.google?.headers ?? options.headers,
+    fetch: options.fetch
+  });
   const createModel = (modelId) => {
     const id = normalizeModelId(modelId);
     if (isClaude(id))
       return anthropic.languageModel(id);
+    if (isGemini(id))
+      return google.languageModel(id);
     if (isResponses(id) && typeof openai.responses === "function")
       return openai.responses(id);
     return openaiLanguageModel(id);
@@ -34,11 +44,15 @@ function createNewclaw(options = {}) {
     const id = normalizeModelId(modelId);
     if (isClaude(id))
       return anthropic.languageModel(id);
+    if (isGemini(id))
+      return google.languageModel(id);
     return openaiChatModel(id);
   };
   provider.responses = (modelId) => {
     const id = normalizeModelId(modelId);
     if (isClaude(id))
+      return provider.chat(id);
+    if (isGemini(id))
       return provider.chat(id);
     return openai.responses(id);
   };

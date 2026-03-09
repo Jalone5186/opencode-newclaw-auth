@@ -2,18 +2,17 @@
  * @file auto-sync.ts
  * @input  NewClaw API /v1/models response
  * @output Updated opencode.json with latest model list
- * @pos    Plan B - auto-sync models from API on startup
+ * @pos    Plan B - auto-sync models from API on every startup
  *
  * Called during plugin init to fetch the latest models from NewClaw API
  * and update the local opencode.json configuration.
- * Uses a 24h file cache to avoid hitting the API on every startup.
+ * Fetches fresh data on every startup — no caching.
  */
 
 import { readFile, writeFile, mkdir } from "node:fs/promises"
 import path from "node:path"
 import os from "node:os"
 
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
 const API_TIMEOUT_MS = 10_000 // 10 seconds
 const PACKAGE_NAME = "opencode-newclaw-auth"
 const PROVIDER_ID = "newclaw"
@@ -26,6 +25,7 @@ const CODING_MODEL_PREFIXES = [
   "deepseek-",
   "grok-",
   "codex-",
+  "gemini-",
 ]
 
 // Models to skip even if they match prefixes (too old, irrelevant, etc.)
@@ -52,10 +52,6 @@ interface ApiModelsResponse {
   data: ApiModel[]
 }
 
-interface CacheData {
-  timestamp: number
-  models: ApiModel[]
-}
 
 interface ModelConfig {
   name: string
@@ -71,10 +67,6 @@ interface ModelConfig {
 
 const homeDir = process.env.OPENCODE_TEST_HOME || os.homedir()
 
-function getCachePath(): string {
-  const cacheRoot = process.env.XDG_CACHE_HOME || path.join(homeDir, ".cache")
-  return path.join(cacheRoot, "opencode", "newclaw-models-cache.json")
-}
 
 function getConfigPaths(): { json: string; jsonc: string; dir: string } {
   const configRoot = process.env.XDG_CONFIG_HOME || path.join(homeDir, ".config")
@@ -109,29 +101,6 @@ async function fileExists(filePath: string): Promise<boolean> {
   }
 }
 
-async function readCache(): Promise<CacheData | undefined> {
-  try {
-    const raw = await readFile(getCachePath(), "utf-8")
-    const data = JSON.parse(raw) as CacheData
-    if (data && data.timestamp && Array.isArray(data.models)) {
-      return data
-    }
-    return undefined
-  } catch {
-    return undefined
-  }
-}
-
-async function writeCache(models: ApiModel[]): Promise<void> {
-  try {
-    const cachePath = getCachePath()
-    await mkdir(path.dirname(cachePath), { recursive: true })
-    const data: CacheData = { timestamp: Date.now(), models }
-    await writeFile(cachePath, JSON.stringify(data, null, 2), "utf-8")
-  } catch {
-    // Cache write failure is non-fatal
-  }
-}
 
 function isCodingModel(modelId: string): boolean {
   const lower = modelId.toLowerCase()
@@ -160,6 +129,7 @@ function modelIdToDisplayName(id: string): string {
     .replace(/^Deepseek /, "DeepSeek ")
     .replace(/^Grok /, "Grok ")
     .replace(/^Codex /, "Codex ")
+    .replace(/^Gemini /, "Gemini ")
 }
 
 function detectModalities(modelId: string): { input: string[]; output: string[] } {
@@ -189,6 +159,9 @@ function detectLimits(modelId: string): { context: number; output: number } {
   }
   if (lower.startsWith("grok-")) {
     return { context: 200000, output: 100000 }
+  }
+  if (lower.startsWith("gemini-")) {
+    return { context: 1000000, output: 65536 }
   }
   // Default
   return { context: 128000, output: 32000 }
@@ -278,46 +251,18 @@ async function getApiKey(): Promise<string | undefined> {
  */
 export async function syncModelsFromApi(): Promise<boolean> {
   try {
-    // Check cache first
-    const cache = await readCache()
-    if (cache && Date.now() - cache.timestamp < CACHE_TTL_MS) {
-      // Cache is fresh — still update config in case it was reset
-      const freshModels = apiModelsToConfig(cache.models)
-      if (Object.keys(freshModels).length > 0) {
-        return await updateConfigModels(freshModels)
-      }
-      return false
-    }
-
     // Get API key
     const apiKey = await getApiKey()
     if (!apiKey) {
       // No API key available — can't fetch models
-      // If we have stale cache, use it
-      if (cache) {
-        const staleModels = apiModelsToConfig(cache.models)
-        if (Object.keys(staleModels).length > 0) {
-          return await updateConfigModels(staleModels)
-        }
-      }
       return false
     }
 
-    // Fetch from API
+    // Fetch from API (every startup, no cache)
     const apiModels = await fetchModelsFromApi(apiKey)
     if (!apiModels || apiModels.length === 0) {
-      // API failed — use stale cache if available
-      if (cache) {
-        const staleModels = apiModelsToConfig(cache.models)
-        if (Object.keys(staleModels).length > 0) {
-          return await updateConfigModels(staleModels)
-        }
-      }
       return false
     }
-
-    // Write cache
-    await writeCache(apiModels)
 
     // Convert and update config
     const modelConfigs = apiModelsToConfig(apiModels)

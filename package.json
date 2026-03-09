@@ -23,7 +23,7 @@
     "scripts"
   ],
   "scripts": {
-    "build": "bun build index.ts provider.ts --outdir dist --target bun --format esm --external @ai-sdk/anthropic --external @ai-sdk/openai --external @ai-sdk/provider --external @ai-sdk/provider-utils --external @opencode-ai/plugin --external @opencode-ai/sdk",
+    "build": "bun build index.ts provider.ts --outdir dist --target bun --format esm --external @ai-sdk/anthropic --external @ai-sdk/openai --external @ai-sdk/google --external @ai-sdk/provider --external @ai-sdk/provider-utils --external @opencode-ai/plugin --external @opencode-ai/sdk",
     "clean": "rm -rf dist",
     "prepublishOnly": "bun run clean && bun run build",
     "typecheck": "bunx tsc --noEmit",
@@ -52,6 +52,7 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "2.0.56",
+    "@ai-sdk/google": "^3.0.43",
     "@ai-sdk/openai": "2.0.71",
     "@ai-sdk/provider": "2.0.0",
     "@ai-sdk/provider-utils": "3.0.19"

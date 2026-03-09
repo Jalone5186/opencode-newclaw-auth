@@ -206,15 +206,10 @@ async function writeOmoConfig() {
 }
 
 
-var CODING_MODEL_PREFIXES = ["claude-", "gpt-", "o1-", "o3-", "o4-", "deepseek-", "grok-", "codex-"];
+var CODING_MODEL_PREFIXES = ["claude-", "gpt-", "o1-", "o3-", "o4-", "deepseek-", "grok-", "codex-", "gemini-"];
 var SKIP_PATTERNS = [/^gpt-3/, /^gpt-4(?!o)/i, /embedding/i, /whisper/i, /tts/i, /dall-e/i, /moderation/i, /realtime/i, /audio/i];
-var CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 var API_TIMEOUT_MS = 10000;
 
-function getCachePath() {
-  var cacheRoot = process.env.XDG_CACHE_HOME || path.join(home, ".cache");
-  return path.join(cacheRoot, "opencode", "newclaw-models-cache.json");
-}
 
 function isCodingModel(id) {
   var lower = id.toLowerCase();
@@ -231,7 +226,8 @@ function modelIdToDisplayName(id) {
     .replace(/^Gpt /, "GPT-")
     .replace(/^O(\d)/, "O$1")
     .replace(/^Deepseek /, "DeepSeek ")
-    .replace(/^Codex /, "Codex ");
+    .replace(/^Codex /, "Codex ")
+    .replace(/^Gemini /, "Gemini ");
 }
 
 function detectModalities(id) {
@@ -248,22 +244,12 @@ function detectLimits(id) {
   }
   if (lower.startsWith("deepseek-")) return { context: 128000, output: 64000 };
   if (/^o[134]-/.test(lower) || lower.startsWith("grok-")) return { context: 200000, output: 100000 };
+  if (lower.startsWith("gemini-")) return { context: 1000000, output: 65536 };
   return { context: 128000, output: 32000 };
 }
 
 async function syncModelsFromApi() {
   try {
-    var cachePath = getCachePath();
-    var cache;
-    try {
-      cache = JSON.parse(await readFile(cachePath, "utf-8"));
-    } catch { cache = null; }
-
-    if (cache && cache.timestamp && Date.now() - cache.timestamp < CACHE_TTL_MS) {
-      console.log("[" + PACKAGE_NAME + "] Model cache is fresh, skipping API fetch");
-      return;
-    }
-
     var apiKey = process.env.NEWCLAW_API_KEY;
     if (!apiKey) {
       try {
@@ -301,9 +287,6 @@ async function syncModelsFromApi() {
       console.log("[" + PACKAGE_NAME + "] Could not fetch models from API");
       return;
     }
-
-    await mkdir(path.dirname(cachePath), { recursive: true });
-    await writeFile(cachePath, JSON.stringify({ timestamp: Date.now(), models: data.data }, null, 2), "utf-8");
 
     var newModels = {};
     data.data.forEach(function (m) {

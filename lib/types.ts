@@ -66,4 +66,5 @@ export interface KeyConfig {
   codex?: string
   deepseek?: string
   grok?: string
+  gemini?: string
 }

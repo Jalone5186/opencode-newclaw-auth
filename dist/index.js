@@ -764,7 +764,6 @@ async function syncOmoConfig() {
 import { readFile as readFile2, writeFile as writeFile2, mkdir as mkdir2 } from "fs/promises";
 import path2 from "path";
 import os2 from "os";
-var CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 var API_TIMEOUT_MS = 1e4;
 var PACKAGE_NAME = "opencode-newclaw-auth";
 var PROVIDER_ID3 = "newclaw";
@@ -776,7 +775,8 @@ var CODING_MODEL_PREFIXES = [
   "o4-",
   "deepseek-",
   "grok-",
-  "codex-"
+  "codex-",
+  "gemini-"
 ];
 var SKIP_PATTERNS = [
   /^gpt-3/,
@@ -790,10 +790,6 @@ var SKIP_PATTERNS = [
   /audio/i
 ];
 var homeDir2 = process.env.OPENCODE_TEST_HOME || os2.homedir();
-function getCachePath() {
-  const cacheRoot = process.env.XDG_CACHE_HOME || path2.join(homeDir2, ".cache");
-  return path2.join(cacheRoot, "opencode", "newclaw-models-cache.json");
-}
 function getConfigPaths() {
   const configRoot2 = process.env.XDG_CONFIG_HOME || path2.join(homeDir2, ".config");
   const dir = path2.join(configRoot2, "opencode");
@@ -820,26 +816,6 @@ async function fileExists2(filePath) {
     return false;
   }
 }
-async function readCache() {
-  try {
-    const raw = await readFile2(getCachePath(), "utf-8");
-    const data = JSON.parse(raw);
-    if (data && data.timestamp && Array.isArray(data.models)) {
-      return data;
-    }
-    return;
-  } catch {
-    return;
-  }
-}
-async function writeCache(models) {
-  try {
-    const cachePath = getCachePath();
-    await mkdir2(path2.dirname(cachePath), { recursive: true });
-    const data = { timestamp: Date.now(), models };
-    await writeFile2(cachePath, JSON.stringify(data, null, 2), "utf-8");
-  } catch {}
-}
 function isCodingModel(modelId) {
   const lower = modelId.toLowerCase();
   const matchesPrefix = CODING_MODEL_PREFIXES.some((prefix) => lower.startsWith(prefix));
@@ -853,7 +829,7 @@ function modelIdToDisplayName(id) {
     if (/^\d/.test(part))
       return part;
     return part.charAt(0).toUpperCase() + part.slice(1);
-  }).join(" ").replace(/^Gpt /, "GPT-").replace(/^O(\d)/, "O$1").replace(/^Claude /, "Claude ").replace(/^Deepseek /, "DeepSeek ").replace(/^Grok /, "Grok ").replace(/^Codex /, "Codex ");
+  }).join(" ").replace(/^Gpt /, "GPT-").replace(/^O(\d)/, "O$1").replace(/^Claude /, "Claude ").replace(/^Deepseek /, "DeepSeek ").replace(/^Grok /, "Grok ").replace(/^Codex /, "Codex ").replace(/^Gemini /, "Gemini ");
 }
 function detectModalities(modelId) {
   const lower = modelId.toLowerCase();
@@ -880,6 +856,9 @@ function detectLimits(modelId) {
   }
   if (lower.startsWith("grok-")) {
     return { context: 200000, output: 1e5 };
+  }
+  if (lower.startsWith("gemini-")) {
+    return { context: 1e6, output: 65536 };
   }
   return { context: 128000, output: 32000 };
 }
@@ -945,35 +924,14 @@ async function getApiKey() {
 }
 async function syncModelsFromApi() {
   try {
-    const cache = await readCache();
-    if (cache && Date.now() - cache.timestamp < CACHE_TTL_MS) {
-      const freshModels = apiModelsToConfig(cache.models);
-      if (Object.keys(freshModels).length > 0) {
-        return await updateConfigModels(freshModels);
-      }
-      return false;
-    }
     const apiKey = await getApiKey();
     if (!apiKey) {
-      if (cache) {
-        const staleModels = apiModelsToConfig(cache.models);
-        if (Object.keys(staleModels).length > 0) {
-          return await updateConfigModels(staleModels);
-        }
-      }
       return false;
     }
     const apiModels = await fetchModelsFromApi(apiKey);
     if (!apiModels || apiModels.length === 0) {
-      if (cache) {
-        const staleModels = apiModelsToConfig(cache.models);
-        if (Object.keys(staleModels).length > 0) {
-          return await updateConfigModels(staleModels);
-        }
-      }
       return false;
     }
-    await writeCache(apiModels);
     const modelConfigs = apiModelsToConfig(apiModels);
     if (Object.keys(modelConfigs).length === 0) {
       return false;
