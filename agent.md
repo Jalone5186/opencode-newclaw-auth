@@ -8,10 +8,10 @@
 
 - **项目名称**: `opencode-newclaw-auth`
 - **类型**: OpenCode 插件（不是 Claude Code CLI 或其他 CLI 的插件）
-- **用途**: 通过 NewClaw API 聚合服务 (`https://newclaw.ai/`) 让 OpenCode 用户访问 Claude、Codex、DeepSeek、Grok 模型
+- **用途**: 通过 NewClaw API 聚合服务 (`https://newclaw.ai/`) 让 OpenCode 用户访问 Claude、Codex、DeepSeek、Grok、Gemini 模型
 - **参考项目**: [opencode-aicodewith-auth](https://github.com/DaneelOlivaw1/opencode-aicodewith-auth) — 同类型插件，为 AICodewith 服务
 - **API 文档**: https://newclaw.apifox.cn/
-- **技术栈**: TypeScript, Bun, AI SDK (@ai-sdk/anthropic, @ai-sdk/openai)
+- **技术栈**: TypeScript, Bun, AI SDK (@ai-sdk/anthropic, @ai-sdk/openai, @ai-sdk/google)
 - **构建**: `bun run build` → `dist/index.js` + `dist/provider.js`
 
 ---
@@ -21,7 +21,7 @@
 ```
 opencode-newclaw-auth/
 ├── index.ts                    # 插件入口：auth hook, loader(自定义fetch), config注入
-├── provider.ts                 # 多供应商工厂：路由到 OpenAI/Anthropic AI SDK
+├── provider.ts                 # 多供应商工厂：路由到 OpenAI/Anthropic/Google AI SDK
 ├── lib/
 │   ├── constants.ts            # 全局常量：URL、请求头、Provider ID
 │   ├── types.ts                # 共享 TypeScript 接口
@@ -61,6 +61,8 @@ opencode-newclaw-auth/
 | `NEWCLAW_CODEX_API_KEY` | Codex/GPT 模型专用 Key |
 | `NEWCLAW_DEEPSEEK_API_KEY` | DeepSeek 模型专用 Key |
 | `NEWCLAW_GROK_API_KEY` | Grok 模型专用 Key |
+| `NEWCLAW_GEMINI_API_KEY` | Gemini 模型专用 Key |
+| `NEWCLAW_GROK_API_KEY` | Grok 模型专用 Key |
 实现位置: `lib/models/registry.ts` → `resolveApiKeyForFamily()`
 
 ### 2. Fetch 拦截机制
@@ -78,9 +80,10 @@ opencode-newclaw-auth/
 用户请求 → OpenCode → auth.loader 返回的自定义 fetch →
   ├── gpt-*/codex-*/o4-* → CODEX_BASE_URL + createNewclawHeaders + transformRequestForCodex
   ├── claude-*          → NEWCLAW_ANTHROPIC_BASE_URL + x-api-key + transformClaudeRequest/Response
+  ├── gemini-*          → NEWCLAW_BASE_URL + Google AI SDK
   ├── deepseek-*        → NEWCLAW_BASE_URL + Bearer token
   ├── grok-*            → NEWCLAW_BASE_URL + Bearer token
-  └── 其他              → NEWCLAW_BASE_URL + createNewclawHeaders (兆底)
+  └── 其他              → NEWCLAW_BASE_URL + createNewclawHeaders (兜底)
 ```
 
 ### 4. URL 重写
@@ -103,7 +106,10 @@ opencode-newclaw-auth/
 | `deepseek-r1` | deepseek | DeepSeek R1 |
 | `deepseek-v3` | deepseek | DeepSeek V3 |
 | `grok-4` | grok | Grok 4 |
-模型注册表位于 `lib/models/registry.ts`，是所有配置的单一数据源。
+| `gemini-*` | gemini | Gemini 系列（通过 API 自动同步加载） |
+
+模型注册表位于 `lib/models/registry.ts`，是静态配置的单一数据源。
+Gemini 及其他新模型通过 `lib/models/auto-sync.ts` 每次启动时从 API 自动同步。
 
 ---
 
@@ -136,10 +142,12 @@ opencode-newclaw-auth/
 5. **Auth 方法类型**: 必须是 `"api"`（不是 `"custom"`），配合 `prompts` 和 `authorize` 使用
 6. **oh-my-opencode 集成**: 可选，安装后自动同步 OMO 配置到 `~/.config/opencode/oh-my-opencode.json`
 ---
+- **v0.3.1** (2026-03-09): 恢复 Gemini、移除缓存
+  - 恢复 Gemini 模型支持（@ai-sdk/google 依赖、provider 路由、模型过滤）
+  - 移除模型同步 24h 缓存，改为每次启动都从 API 获取最新模型列表
 - **v0.3.0** (2026-03-09): 清理 Gemini、升级版本
-  - 移除所有 Gemini 相关代码和 @ai-sdk/google 依赖
   - 添加 DeepSeek、Grok 模型支持
-  - 实现模型列表自动同步（启动时同步调 API + 24h 缓存）
+  - 实现模型列表自动同步（启动时同步调 API）
   - 扩充模型注册表至 10 个模型
   - 更新文档为傻瓜式一键安装教程（macOS/Windows/Linux）
 - **v0.2.0** (2026-03-06): 全面优化
