@@ -41,6 +41,7 @@
 用户请求 → OpenCode → 插件认证钩子 → 按模型路由:
   ├── gpt-*/codex-*/o4-* → NewClaw Codex API
   ├── claude-*           → NewClaw Anthropic API
+  ├── gemini-*           → NewClaw Google API
   ├── deepseek-*         → NewClaw DeepSeek API
   └── grok-*             → NewClaw Grok API
 ```
@@ -61,8 +62,10 @@
 | `newclaw/deepseek-r1` | DeepSeek R1 | — 纯文本 | 数学推理、深度思考 |
 | `newclaw/deepseek-v3` | DeepSeek V3 | — 纯文本 | 通用编程 |
 | `newclaw/grok-4` | Grok 4 | ✅ | 通用推理 |
+| `newclaw/gemini-2.5-pro` | Gemini 2.5 Pro | ✅ | 长上下文、多模态 |
+| `newclaw/gemini-2.5-flash` | Gemini 2.5 Flash | ✅ | 快速响应、低成本 |
 
-> 💡 以上是预置模型。插件每次启动时会自动从 API 同步最新模型列表（含 Gemini 等），无需手动更新。
+> 💡 以上是预置模型。插件每次启动时会自动从 API 同步最新模型列表，新模型无需手动更新。
 
 ---
 
