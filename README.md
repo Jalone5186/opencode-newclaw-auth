@@ -49,7 +49,7 @@
 
 ## 支持的模型
 
-| 模型 ID | 显示名称 | 图片输入 | 适合场景 |
+| 模型 ID | 显示名称 | 支持图片 | 适合场景 |
 |---------|---------|:-------:|---------|
 | `newclaw/claude-opus-4-6` | Claude Opus 4.6 | ✅ | 复杂任务、深度思考 |
 | `newclaw/claude-sonnet-4-6` | Claude Sonnet 4.6 | ✅ | 日常编程、快速响应 |
@@ -58,9 +58,11 @@
 | `newclaw/gpt-5.4` | GPT-5.4 | ✅ | 高级推理、复杂逻辑 |
 | `newclaw/gpt-5.2` | GPT-5.2 | ✅ | 架构设计、逻辑推理 |
 | `newclaw/o4-mini` | O4 Mini | ✅ | 快速推理、低成本 |
-| `newclaw/deepseek-r1` | DeepSeek R1 | ❌ | 数学推理、深度思考 |
-| `newclaw/deepseek-v3` | DeepSeek V3 | ❌ | 通用编程 |
+| `newclaw/deepseek-r1` | DeepSeek R1 | — 纯文本 | 数学推理、深度思考 |
+| `newclaw/deepseek-v3` | DeepSeek V3 | — 纯文本 | 通用编程 |
 | `newclaw/grok-4` | Grok 4 | ✅ | 通用推理 |
+
+> 💡 以上是预置模型。插件每次启动时会自动从 API 同步最新模型列表（含 Gemini 等），无需手动更新。
 
 ---
 
