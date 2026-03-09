@@ -10,7 +10,7 @@
  * 3. Done!
  */
 
-export type ModelFamily = "codex" | "claude" | "deepseek" | "grok"
+export type ModelFamily = "codex" | "claude" | "deepseek" | "grok" | "gemini"
 export type ReasoningSupport = "none" | "basic" | "full" | "xhigh"
 
 export interface ModelDefinition {
@@ -245,6 +245,7 @@ export function resolveApiKeyForFamily(
     codex: "NEWCLAW_CODEX_API_KEY",
     deepseek: "NEWCLAW_DEEPSEEK_API_KEY",
     grok: "NEWCLAW_GROK_API_KEY",
+    gemini: "NEWCLAW_GEMINI_API_KEY",
   }
   const envKey = process.env[envMap[family]]
   if (envKey?.trim()) return envKey.trim()
@@ -259,5 +260,6 @@ export function detectFamily(modelId: string): ModelFamily {
   if (id.startsWith("claude-")) return "claude"
   if (id.startsWith("deepseek-")) return "deepseek"
   if (id.startsWith("grok-")) return "grok"
+  if (id.startsWith("gemini-")) return "gemini"
   return "codex"
 }

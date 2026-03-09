@@ -421,7 +421,8 @@ function resolveApiKeyForFamily(family, unifiedKey) {
     claude: "NEWCLAW_CLAUDE_API_KEY",
     codex: "NEWCLAW_CODEX_API_KEY",
     deepseek: "NEWCLAW_DEEPSEEK_API_KEY",
-    grok: "NEWCLAW_GROK_API_KEY"
+    grok: "NEWCLAW_GROK_API_KEY",
+    gemini: "NEWCLAW_GEMINI_API_KEY"
   };
   const envKey = process.env[envMap[family]];
   if (envKey?.trim())
@@ -436,6 +437,8 @@ function detectFamily(modelId) {
     return "deepseek";
   if (id.startsWith("grok-"))
     return "grok";
+  if (id.startsWith("gemini-"))
+    return "gemini";
   return "codex";
 }
 // lib/provider-config.json

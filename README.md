@@ -135,6 +135,7 @@ opencode auth login
 | `NEWCLAW_CODEX_API_KEY` | Codex/GPT 专用 Key |
 | `NEWCLAW_DEEPSEEK_API_KEY` | DeepSeek 专用 Key |
 | `NEWCLAW_GROK_API_KEY` | Grok 专用 Key |
+| `NEWCLAW_GEMINI_API_KEY` | Gemini 专用 Key |
 
 **macOS / Linux** — 在 `~/.zshrc` 或 `~/.bashrc` 中添加：
 ```bash
