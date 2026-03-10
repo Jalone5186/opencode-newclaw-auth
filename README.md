@@ -112,7 +112,7 @@ curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt-ge
 **macOS / Linux**（含 oh-my-opencode AI 代理编排框架）：
 
 ```bash
-npm install -g opencode-ai && opencode --version && cd ~/.cache/opencode && npm install https://github.com/Jalone5186/opencode-newclaw-auth.git oh-my-opencode && echo "✅ 安装完成！运行 opencode 启动"
+npm install -g opencode-ai && opencode --version && cd ~/.cache/opencode && npm install https://github.com/Jalone5186/opencode-newclaw-auth/tarball/main oh-my-opencode && echo "✅ 安装完成！运行 opencode 启动"
 ```
 
 **Windows (PowerShell)**（含 oh-my-opencode AI 代理编排框架）：
@@ -126,7 +126,7 @@ $ErrorActionPreference="Stop"; npm install -g opencode-ai; opencode --version; $
 
 **macOS / Linux：**
 ```bash
-npm install -g opencode-ai && opencode --version && cd ~/.cache/opencode && npm install https://github.com/Jalone5186/opencode-newclaw-auth.git && echo "✅ 安装完成！"
+npm install -g opencode-ai && opencode --version && cd ~/.cache/opencode && npm install https://github.com/Jalone5186/opencode-newclaw-auth/tarball/main && echo "✅ 安装完成！"
 ```
 
 **Windows (PowerShell)：**
