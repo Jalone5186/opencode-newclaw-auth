@@ -118,7 +118,7 @@ npm install -g opencode-ai && opencode --version && cd ~/.cache/opencode && npm 
 **Windows (PowerShell)**（含 oh-my-opencode AI 代理编排框架）：
 
 ```powershell
-$ErrorActionPreference="Stop"; npm install -g opencode-ai; opencode --version; $d=if(Test-Path "$env:LOCALAPPDATA\opencode"){"$env:LOCALAPPDATA\opencode"}else{"$env:USERPROFILE\.cache\opencode"}; New-Item -ItemType Directory -Force -Path $d | Out-Null; cd $d; npm install https://github.com/Jalone5186/opencode-newclaw-auth.git oh-my-opencode; Write-Host "✅ 安装完成！运行 opencode 启动"
+$ErrorActionPreference="Stop"; npm install -g opencode-ai; opencode --version; $d=if(Test-Path "$env:LOCALAPPDATA\opencode"){"$env:LOCALAPPDATA\opencode"}else{"$env:USERPROFILE\.cache\opencode"}; New-Item -ItemType Directory -Force -Path $d | Out-Null; cd $d; npm install https://github.com/Jalone5186/opencode-newclaw-auth/tarball/main oh-my-opencode; Write-Host "✅ 安装完成！运行 opencode 启动"
 ```
 
 ### 不需要 oh-my-opencode？
@@ -131,7 +131,7 @@ npm install -g opencode-ai && opencode --version && cd ~/.cache/opencode && npm 
 
 **Windows (PowerShell)：**
 ```powershell
-$ErrorActionPreference="Stop"; npm install -g opencode-ai; opencode --version; $d=if(Test-Path "$env:LOCALAPPDATA\opencode"){"$env:LOCALAPPDATA\opencode"}else{"$env:USERPROFILE\.cache\opencode"}; New-Item -ItemType Directory -Force -Path $d | Out-Null; cd $d; npm install https://github.com/Jalone5186/opencode-newclaw-auth.git; Write-Host "✅ 安装完成！"
+$ErrorActionPreference="Stop"; npm install -g opencode-ai; opencode --version; $d=if(Test-Path "$env:LOCALAPPDATA\opencode"){"$env:LOCALAPPDATA\opencode"}else{"$env:USERPROFILE\.cache\opencode"}; New-Item -ItemType Directory -Force -Path $d | Out-Null; cd $d; npm install https://github.com/Jalone5186/opencode-newclaw-auth/tarball/main; Write-Host "✅ 安装完成！"
 ```
 
 ---
