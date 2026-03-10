@@ -81,7 +81,7 @@
 node -v && npm -v
 ```
 
-如果显示了版本号（Node.js >= 18），可以跳到第二步。如果提示 `command not found`，请先安装 Node.js：
+如果显示了版本号（Node.js >= 22），可以跳到第二步。如果提示 `command not found` 或版本低于 22，请先安装 Node.js：
 
 **macOS：**
 ```bash
