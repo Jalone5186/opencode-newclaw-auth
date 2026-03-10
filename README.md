@@ -71,31 +71,48 @@
 
 ---
 
-## 安装（一键完成）
+## 安装
+
+### 第一步：确认 Node.js 环境
+
+插件依赖 Node.js 和 npm，请先确认已安装。在终端中运行：
+
+```bash
+node -v && npm -v
+```
+
+如果显示了版本号（Node.js >= 18），可以跳到第二步。如果提示 `command not found`，请先安装 Node.js：
+
+**macOS：**
+```bash
+brew install node
+```
+
+> 没有 brew？先运行：`/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`
+
+**Windows：**
+
+访问 https://nodejs.org/ 下载安装包，选择 LTS 版本，一路点"下一步"即可。安装完成后重新打开 PowerShell。
+
+**Linux (Ubuntu/Debian)：**
+```bash
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt-get install -y nodejs
+```
+
+### 第二步：安装插件（一键完成）
 
 ⚠️ **重要提示**：插件必须安装到 `~/.cache/opencode/` 目录下，否则无法正确加载。请根据你的操作系统，复制下方的**一键安装命令**并执行。
 
-### macOS / Linux
-请在终端中复制粘贴并运行以下完整命令（含 oh-my-opencode AI 代理编排框架）：
+**macOS / Linux**（含 oh-my-opencode AI 代理编排框架）：
 
 ```bash
-npm install -g opencode-ai && \
-opencode --version && \
-cd ~/.cache/opencode && \
-npm install https://github.com/Jalone5186/opencode-newclaw-auth.git oh-my-opencode && \
-echo "✅ 安装完成！运行 opencode 启动"
+npm install -g opencode-ai && opencode --version && cd ~/.cache/opencode && npm install https://github.com/Jalone5186/opencode-newclaw-auth.git oh-my-opencode && echo "✅ 安装完成！运行 opencode 启动"
 ```
 
-### Windows (PowerShell)
-请在 PowerShell 中复制粘贴并运行以下完整命令（含 oh-my-opencode AI 代理编排框架，缓存目录自动识别）：
+**Windows (PowerShell)**（含 oh-my-opencode AI 代理编排框架）：
 
 ```powershell
-npm install -g opencode-ai; `
-opencode --version; `
-cd "$env:LOCALAPPDATA\opencode"; `
-if (-not (Test-Path .)) { cd "$env:USERPROFILE\.cache\opencode" }; `
-npm install https://github.com/Jalone5186/opencode-newclaw-auth.git oh-my-opencode; `
-Write-Host "✅ 安装完成！运行 opencode 启动"
+npm install -g opencode-ai; opencode --version; cd "$env:LOCALAPPDATA\opencode"; if (-not (Test-Path .)) { cd "$env:USERPROFILE\.cache\opencode" }; npm install https://github.com/Jalone5186/opencode-newclaw-auth.git oh-my-opencode; Write-Host "✅ 安装完成！运行 opencode 启动"
 ```
 
 ### 不需要 oh-my-opencode？
@@ -144,17 +161,18 @@ opencode auth login
 
 **macOS / Linux** — 复制以下命令执行（请将 `sk-xxx` 替换为你的实际 Key）：
 
-配置一条：
+配置一条（可安全重复执行，不会产生重复行）：
 ```bash
-echo 'export NEWCLAW_CLAUDE_API_KEY="sk-xxx"' >> ~/.zshrc && source ~/.zshrc
+sed -i '' '/NEWCLAW_CLAUDE_API_KEY/d' ~/.zshrc; printf 'export NEWCLAW_CLAUDE_API_KEY="sk-xxx"\n' >> ~/.zshrc && source ~/.zshrc
 ```
 
-同时配置多条：
+同时配置多条（可安全重复执行）：
 ```bash
-printf 'export NEWCLAW_CLAUDE_API_KEY="sk-claude-key"\nexport NEWCLAW_CODEX_API_KEY="sk-codex-key"\nexport NEWCLAW_GEMINI_API_KEY="sk-gemini-key"\n' >> ~/.zshrc && source ~/.zshrc
+sed -i '' '/NEWCLAW_CLAUDE_API_KEY/d;/NEWCLAW_CODEX_API_KEY/d;/NEWCLAW_GEMINI_API_KEY/d' ~/.zshrc; printf 'export NEWCLAW_CLAUDE_API_KEY="sk-claude-key"\nexport NEWCLAW_CODEX_API_KEY="sk-codex-key"\nexport NEWCLAW_GEMINI_API_KEY="sk-gemini-key"\n' >> ~/.zshrc && source ~/.zshrc
 ```
 
 > 如果你用的是 bash 而不是 zsh，把上面的 `.zshrc` 换成 `.bashrc`。
+> Linux 用户请把 `sed -i ''` 改为 `sed -i`（去掉空引号）。
 
 **Windows (PowerShell)** — 复制以下命令执行（请将 `sk-xxx` 替换为你的实际 Key），多条直接换行即可：
 ```powershell
