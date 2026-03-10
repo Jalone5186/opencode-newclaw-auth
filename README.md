@@ -92,7 +92,13 @@ brew install node
 
 **Windows：**
 
-访问 https://nodejs.org/ 下载安装包，选择 LTS 版本，一路点"下一步"即可。安装完成后重新打开 PowerShell。
+访问 https://nodejs.org/ 下载安装包，选择 LTS 版本，一路点"下一步"即可。安装完成后**以管理员身份打开 PowerShell**，运行以下命令解除脚本限制（只需执行一次）：
+
+```powershell
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
+然后关闭 PowerShell，重新打开普通的 PowerShell 窗口即可。
 
 **Linux (Ubuntu/Debian)：**
 ```bash
@@ -112,7 +118,7 @@ npm install -g opencode-ai && opencode --version && cd ~/.cache/opencode && npm 
 **Windows (PowerShell)**（含 oh-my-opencode AI 代理编排框架）：
 
 ```powershell
-npm install -g opencode-ai; opencode --version; cd "$env:LOCALAPPDATA\opencode"; if (-not (Test-Path .)) { cd "$env:USERPROFILE\.cache\opencode" }; npm install https://github.com/Jalone5186/opencode-newclaw-auth.git oh-my-opencode; Write-Host "✅ 安装完成！运行 opencode 启动"
+$ErrorActionPreference="Stop"; npm install -g opencode-ai; opencode --version; $d=if(Test-Path "$env:LOCALAPPDATA\opencode"){"$env:LOCALAPPDATA\opencode"}else{"$env:USERPROFILE\.cache\opencode"}; New-Item -ItemType Directory -Force -Path $d | Out-Null; cd $d; npm install https://github.com/Jalone5186/opencode-newclaw-auth.git oh-my-opencode; Write-Host "✅ 安装完成！运行 opencode 启动"
 ```
 
 ### 不需要 oh-my-opencode？
@@ -125,7 +131,7 @@ npm install -g opencode-ai && opencode --version && cd ~/.cache/opencode && npm 
 
 **Windows (PowerShell)：**
 ```powershell
-npm install -g opencode-ai; opencode --version; cd "$env:LOCALAPPDATA\opencode"; if (-not (Test-Path .)) { cd "$env:USERPROFILE\.cache\opencode" }; npm install https://github.com/Jalone5186/opencode-newclaw-auth.git; Write-Host "✅ 安装完成！"
+$ErrorActionPreference="Stop"; npm install -g opencode-ai; opencode --version; $d=if(Test-Path "$env:LOCALAPPDATA\opencode"){"$env:LOCALAPPDATA\opencode"}else{"$env:USERPROFILE\.cache\opencode"}; New-Item -ItemType Directory -Force -Path $d | Out-Null; cd $d; npm install https://github.com/Jalone5186/opencode-newclaw-auth.git; Write-Host "✅ 安装完成！"
 ```
 
 ---
