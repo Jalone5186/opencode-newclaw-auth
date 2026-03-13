@@ -9,7 +9,7 @@ oh-my-opencode 提供多模型编排、并行后台代理、LSP/AST 工具等高
 ## 前置条件
 
 - 已安装 Node.js 18+
-- 已准备好 NewClaw API Key
+- 已有 NewClaw 平台账号（注册地址：https://newclaw.ai/）
 
 ---
 
@@ -33,9 +33,9 @@ npm install -g opencode-ai; cd "$env:LOCALAPPDATA\opencode"; if (-not (Test-Path
 
 ---
 
-## 配置 API Key
+## 配置账号
 
-安装完成后，请配置你的 NewClaw API Key：
+安装完成后（如果安装时跳过了账号配置），请配置你的 NewClaw 平台账号：
 
 ```bash
 opencode auth login
@@ -44,7 +44,10 @@ opencode auth login
 运行后会出现交互式菜单，按以下步骤操作：
 1. `Select a provider`: 选择 `Other`
 2. `Enter provider name`: 输入 `newclaw`（必须全小写）
-3. `Enter API key`: 粘贴你的 NewClaw API Key
+3. `NewClaw 账号（用户名或邮箱）`: 输入你的平台用户名
+4. `NewClaw 密码`: 输入你的平台密码
+
+插件会自动登录平台，发现所有已配置的令牌，并同步可用模型列表。
 
 ---
 

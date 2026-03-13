@@ -27,10 +27,14 @@ opencode-newclaw-auth/
 │   ├── types.ts                # 共享 TypeScript 接口
 │   ├── logger.ts               # 调试/请求日志
 │   ├── provider-config.json    # 静态 provider 配置（预置模型列表）
+│   ├── auth/
+│   │   └── system-auth.ts      # 平台账号登录 + 令牌发现
 │   ├── models/
 │   │   ├── index.ts            # 模型模块导出
-│   │   ├── registry.ts         # 模型注册表（单一数据源）+ resolveApiKeyForFamily
-│   │   └── auto-sync.ts        # 模型列表自动同步（每次启动从 API 获取）
+│   │   ├── registry.ts         # 模型注册表（单一数据源）
+│   │   ├── auto-sync.ts        # 模型列表自动同步（每次启动从 API 获取）
+│   │   ├── pricing.ts          # /api/pricing 分组倍率获取
+│   │   └── key-registry.ts     # 多 Key 注册表 + failover
 │   └── request/
 │       ├── fetch-helpers.ts    # 请求头构建、URL提取、响应处理
 │       ├── request-transformer.ts  # Codex 请求体转换、模型归一化
@@ -49,22 +53,23 @@ opencode-newclaw-auth/
 
 ### 1. API Key 配置模式（核心特性）
 
-**两种模式，优先级从高到低：**
+**三层 Key 来源，运行时优先级从高到低：**
 
 ```
-厂商专用 Key (环境变量) > 统一 Key (NEWCLAW_API_KEY / auth输入) 
+环境变量覆盖 (NEWCLAW_API_KEY) > KeyRegistry 匹配（最低倍率优先）> auth.json 统一 key
 ```
 
-| 环境变量 | 作用 |
-|---------|------|
-| `NEWCLAW_API_KEY` | 统一 Key，一键配置所有模型 |
-| `NEWCLAW_CLAUDE_API_KEY` | Claude 模型专用 Key |
-| `NEWCLAW_CODEX_API_KEY` | Codex/GPT 模型专用 Key |
-| `NEWCLAW_DEEPSEEK_API_KEY` | DeepSeek 模型专用 Key |
-| `NEWCLAW_GROK_API_KEY` | Grok 模型专用 Key |
-| `NEWCLAW_GEMINI_API_KEY` | Gemini 模型专用 Key |
+**Key 来源层级：**
 
-实现位置: `lib/models/registry.ts` → `resolveApiKeyForFamily()`
+```
+系统登录（.newclaw-credentials）→ auth.json → opencode.json keys[]
+```
+
+1. **系统账号登录**（推荐）: `lib/auth/system-auth.ts` 用用户名/密码登录平台，获取所有令牌列表，注册到 `KeyRegistry`
+2. **auth.json 统一 key**: OpenCode 内置的 `auth.json` 存储的 key 作为兜底
+3. **环境变量覆盖**（可选）: `NEWCLAW_API_KEY` 直接覆盖所有来源
+
+实现位置: `lib/models/key-registry.ts` → `selectKeysForModel()`
 
 ### 2. Fetch 拦截机制
 
@@ -72,6 +77,12 @@ opencode-newclaw-auth/
 - `loader` 接收 `getAuth()` 获取用户的 API Key
 - 返回 `{ apiKey, fetch }` 对象
 - 自定义 `fetch` 按模型 ID 路由请求到不同的 NewClaw 端点
+
+**自动降级（failover）**:
+- `selectKeysForModel()` 返回按倍率升序排序的候选 key 列表
+- fetch 拦截器遍历 key 列表发起请求
+- 某个 key 返回 401/403/429，或非最后一个 key 发生网络错误，自动切换到下一个 key
+- 所有 key 均失败才向上层报错
 
 **不是**通过 Hooks 的 `fetch` 属性（该属性不存在于 Hooks 接口中）。
 
@@ -93,62 +104,31 @@ opencode-newclaw-auth/
 
 ### 5. 模型自动同步
 
-每次 OpenCode 启动时，插件从 NewClaw API (`/v1/models`) 获取最新模型列表并更新 `opencode.json`。
+每次 OpenCode 启动时，插件从 NewClaw API 获取最新模型列表并更新 `opencode.json`。
 
 **实现位置**:
 - TypeScript 版: `lib/models/auto-sync.ts` → `syncModelsFromApi()`
 - CJS 版（postinstall）: `scripts/install-opencode-newclaw.cjs` → `syncModelsFromApi()`
+- 平台账号登录: `lib/auth/system-auth.ts` → 登录后获取所有令牌
+- 分组倍率: `lib/models/pricing.ts` → GET `/api/pricing`（公开接口，无需鉴权）
+- 多 Key 管理: `lib/models/key-registry.ts` → 注册、排序、failover
 
-**过滤逻辑**: API 返回约 493 个模型，通过 `isCodingModel()` 过滤为约 165 个编程相关模型。
+**多 Key 发现流程**:
+1. `system-auth.ts` 用用户名/密码登录平台，获取所有令牌列表
+2. 每个令牌并行调 `/v1/models`，取所有模型并集
+3. `pricing.ts` 调 `/api/pricing` 获取分组名和倍率
+4. 模型显示名格式: `模型名 [分组/倍率]`（例如 `Claude Opus 4.6 [默认/1x]`）
+5. 所有模型注册到 `KeyRegistry`，不做过滤
 
-**Auth 位置**: API Key 从 `~/.local/share/opencode/auth.json`（XDG_DATA_HOME）读取，不是 `~/.config/opencode/auth.json`。
+**Auth 位置**: API Key 从 `~/.local/share/opencode/auth.json`（XDG_DATA_HOME）读取，不是 `~/.config/opencode/auth.json`。凭证文件保存在插件目录 `.newclaw-credentials`。
 
 **时序问题**: OpenCode 先读配置文件再加载插件，所以首次安装需要**启动两次**才能看到完整模型列表。
 
 ---
 
-## 模型过滤条件（扩展新厂商必读）
+## 模型注册说明
 
-### 当前过滤规则
-
-过滤条件定义在两个文件中（保持同步）：
-- `lib/models/auto-sync.ts` 第 21-42 行
-- `scripts/install-opencode-newclaw.cjs` 第 211-212 行
-
-**允许通过的前缀** (`CODING_MODEL_PREFIXES`):
-```
-claude-, gpt-, o1-, o3-, o4-, deepseek-, grok-, codex-, gemini-
-```
-
-**跳过的模式** (`SKIP_PATTERNS`):
-```
-gpt-3*, gpt-4(非4o)*, embedding, whisper, tts, dall-e, moderation, realtime, audio
-```
-
-### 如何添加新厂商模型支持
-
-如果后续 NewClaw API 上线了新厂商的模型（例如 Mistral、Llama 等），只需要：
-
-1. **在 `CODING_MODEL_PREFIXES` 中添加新前缀**
-   - `lib/models/auto-sync.ts` 的 `CODING_MODEL_PREFIXES` 数组
-   - `scripts/install-opencode-newclaw.cjs` 的 `CODING_MODEL_PREFIXES` 数组
-   - 例如添加 `"mistral-"` 或 `"llama-"`
-
-2. **在 `detectLimits()` 中添加对应的 context/output 限制**（两个文件都要改）
-
-3. **在 `detectModalities()` 中设置输入输出模式**（是否支持图片等）
-
-4. **如果新厂商需要独立 API Key**:
-   - `lib/types.ts` → `KeyConfig` 接口添加新字段
-   - `lib/models/registry.ts` → `resolveApiKeyForFamily()` 添加新的环境变量检查
-   - `lib/models/registry.ts` → `detectFamily()` 添加前缀到家族的映射
-
-5. **如果新厂商需要特殊的请求格式**:
-   - `provider.ts` → `newclawProvider()` 中添加新的路由分支
-
-6. **更新文档**: README.md 和本文件的模型表格、数据流图
-
-> **重要**: auto-sync.ts 和 install-opencode-newclaw.cjs 中的过滤逻辑必须保持一致，两个文件都要改。
+所有 API 返回的模型均注册，不做过滤。
 
 ---
 
@@ -173,7 +153,7 @@ gpt-3*, gpt-4(非4o)*, embedding, whisper, tts, dall-e, moderation, realtime, au
 
 以上为静态预置模型（`lib/models/registry.ts` + `lib/provider-config.json`）。
 
-启动时 `auto-sync.ts` 从 API 同步约 165 个编程模型（覆盖 Claude、GPT/Codex、DeepSeek、Grok、Gemini 五大厂商），自动合并到配置中。
+启动时 `auto-sync.ts` 从 API 同步所有模型（不过滤），通过 `pricing.ts` 获取分组倍率，显示名格式为 `模型名 [分组/倍率]`，全部注册到 `KeyRegistry`。
 
 ---
 
@@ -185,6 +165,7 @@ gpt-3*, gpt-4(非4o)*, embedding, whisper, tts, dall-e, moderation, realtime, au
 | Anthropic 端点 | `https://newclaw.ai/v1` |
 | Codex 端点 | `https://newclaw.ai/v1` |
 | 模型列表 | `https://newclaw.ai/v1/models` |
+| 分组倍率 | `https://newclaw.ai/api/pricing`（公开接口，无需鉴权）|
 
 所有端点都指向同一个 NewClaw 网关，由网关内部路由到不同的上游 API。
 
@@ -197,6 +178,7 @@ gpt-3*, gpt-4(非4o)*, embedding, whisper, tts, dall-e, moderation, realtime, au
 | OpenCode 配置 | `~/.config/opencode/opencode.json` | 模型列表写入位置 |
 | API Key 存储 | `~/.local/share/opencode/auth.json` | **注意是 XDG_DATA_HOME，不是 XDG_CONFIG_HOME** |
 | 插件安装目录 | `~/.cache/opencode/node_modules/` | OpenCode 从这里加载插件 |
+| 平台凭证 | `<插件目录>/.newclaw-credentials` | 平台账号登录凭证（用户名/密码） |
 
 ---
 
@@ -241,6 +223,14 @@ gpt-3*, gpt-4(非4o)*, embedding, whisper, tts, dall-e, moderation, realtime, au
 
 ## 版本历史
 
+- **v0.4.0** (2026-03-14): 多 Key 架构 + 系统账号认证 + 自动降级
+  - 新增平台账号登录（用户名/密码），自动发现所有令牌
+  - 新增 /api/pricing 集成，模型显示名带分组和倍率信息
+  - 新增 KeyRegistry 多 Key 管理，按倍率排序选择最优 key
+  - 新增自动降级：401/403/429 时自动切换到下一个 key
+  - 移除模型过滤（CODING_MODEL_PREFIXES、SKIP_PATTERNS），所有模型直通
+  - 安装时支持交互式输入平台账号密码
+  - 凭证保存至插件目录 .newclaw-credentials
 - **v0.3.1** (2026-03-09): 重大 Bug 修复 + Gemini 恢复
   - 修复 auth.json 路径错误（XDG_CONFIG_HOME → XDG_DATA_HOME），模型自动同步终于正常工作
   - 修复 applyProviderConfig 覆盖模型列表，启动后不再丢失同步的模型

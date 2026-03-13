@@ -6,7 +6,7 @@
 
 一个 API Key → 多模型可用（Claude、GPT/Codex、Gemini、DeepSeek、Grok）
 
-支持按模型厂商配置不同 Key，也支持一键统一配置
+通过平台账号自动发现所有令牌，智能路由 + 自动降级
 
 [![license](https://img.shields.io/badge/license-MIT-black?style=flat-square)](#license)
 
@@ -27,7 +27,11 @@
 │  ├── constants.ts      全局常量 & 请求头名称                     │
 │  ├── types.ts          共享 TypeScript 接口                      │
 │  ├── logger.ts         调试/请求日志工具                         │
+│  ├── auth/             平台账号认证                               │
+│  │   └── system-auth.ts   平台账号登录 + 令牌发现                │
 │  ├── models/           模型注册表 (单一数据源)                    │
+│  │   ├── pricing.ts        /api/pricing 分组倍率获取             │
+│  │   └── key-registry.ts   多 Key 注册表 + failover              │
 │  └── request/          请求转换 & 响应处理                       │
 ├─────────────────────────────────────────────────────────────────┤
 │  scripts/          安装自动化                                     │
@@ -38,12 +42,11 @@
 ### 数据流
 
 ```
-用户请求 → OpenCode → 插件认证钩子 → 按模型路由:
-  ├── gpt-*/codex-*/o4-* → NewClaw Codex API
-  ├── claude-*           → NewClaw Anthropic API
-  ├── gemini-*           → NewClaw Gemini API (Google AI SDK)
-  ├── deepseek-*         → NewClaw DeepSeek API
-  └── grok-*             → NewClaw Grok API
+启动流程:
+  平台账号登录 → 获取所有令牌 → /api/pricing 获取分组倍率 → 每个令牌调 /v1/models → 注册到 KeyRegistry
+
+请求流程:
+  用户请求 → KeyRegistry 选出最低倍率 key → 发送请求 → 401/403/429? → 自动切换下一个 key
 ```
 
 ---
@@ -67,7 +70,7 @@
 | `newclaw/gemini-2.5-pro` | Gemini 2.5 Pro | ✅ | 深度推理、长上下文 |
 | `newclaw/gemini-2.5-flash` | Gemini 2.5 Flash | ✅ | 快速响应、低成本 |
 
-> 💡 以上是预置模型。插件每次启动时会自动从 NewClaw API 同步最新模型列表（目前支持 Claude、GPT/Codex、DeepSeek、Grok、Gemini 系列），新模型无需手动更新。
+> 💡 以上是预置模型，仅供参考。插件每次启动时会自动从 NewClaw API 同步所有可用模型，不做过滤。显示名称包含分组和倍率信息，例如 `Claude Opus 4.6 [默认/1x]`，新模型无需手动更新。
 
 ---
 
@@ -136,9 +139,11 @@ $ErrorActionPreference="Stop"; npm install -g opencode-ai; opencode --version; $
 
 ---
 
-## 配置 API Key
+## 配置账号
 
-安装完成后，你需要配置 API Key 才能使用。我们推荐使用 OpenCode 内置的认证流程：
+安装时，postinstall 脚本会自动提示你输入 NewClaw 平台账号和密码（可直接按回车跳过，稍后再配置）。
+
+如果安装时跳过了，或者需要重新配置，运行：
 
 ```bash
 opencode auth login
@@ -147,44 +152,33 @@ opencode auth login
 运行后会出现交互式菜单，请按以下步骤操作：
 1. `Select a provider`: 选择 `Other`
 2. `Enter provider name`: 输入 `newclaw`（必须全小写）
-3. `Enter API key`: 粘贴你的 NewClaw API Key
+3. `NewClaw 账号（用户名或邮箱）`: 输入你的平台用户名
+4. `NewClaw 密码`: 输入你的平台密码
+
+插件会自动登录平台，发现所有已配置的令牌，并同步可用模型列表。凭证保存在插件目录的 `.newclaw-credentials` 文件中。
 
 > **没看到 Other 选项？**
 > 确保你已经完成了安装步骤中的 `npm install` 命令。如果你已经打开了 OpenCode，请按 `Ctrl + C` 退出后重新启动。
 
-### 按模型厂商独立配置 Key（可选）
+### 高级配置（可选）
 
-如果你想为不同的模型使用不同的 Key，可以通过设置环境变量来实现（环境变量的优先级高于通过 `opencode auth login` 配置的 Key）：
+如果你有特殊需求，可以通过环境变量覆盖自动发现的令牌（优先级高于账号登录）：
 
 | 变量名 | 说明 |
 |--------|------|
-| `NEWCLAW_API_KEY` | 统一 API Key |
-| `NEWCLAW_CLAUDE_API_KEY` | Claude 专用 Key |
-| `NEWCLAW_CODEX_API_KEY` | Codex/GPT 专用 Key |
-| `NEWCLAW_DEEPSEEK_API_KEY` | DeepSeek 专用 Key |
-| `NEWCLAW_GROK_API_KEY` | Grok 专用 Key |
-| `NEWCLAW_GEMINI_API_KEY` | Gemini 专用 Key |
+| `NEWCLAW_API_KEY` | 统一覆盖 Key |
 
-**macOS / Linux** — 复制以下命令执行（请将 `sk-xxx` 替换为你的实际 Key）：
-
-配置一条（可安全重复执行，不会产生重复行）：
+**macOS / Linux：**
 ```bash
-sed -i '' '/NEWCLAW_CLAUDE_API_KEY/d' ~/.zshrc; printf 'export NEWCLAW_CLAUDE_API_KEY="sk-xxx"\n' >> ~/.zshrc && source ~/.zshrc
-```
-
-同时配置多条（可安全重复执行）：
-```bash
-sed -i '' '/NEWCLAW_CLAUDE_API_KEY/d;/NEWCLAW_CODEX_API_KEY/d;/NEWCLAW_GEMINI_API_KEY/d' ~/.zshrc; printf 'export NEWCLAW_CLAUDE_API_KEY="sk-claude-key"\nexport NEWCLAW_CODEX_API_KEY="sk-codex-key"\nexport NEWCLAW_GEMINI_API_KEY="sk-gemini-key"\n' >> ~/.zshrc && source ~/.zshrc
+sed -i '' '/NEWCLAW_API_KEY/d' ~/.zshrc; printf 'export NEWCLAW_API_KEY="sk-xxx"\n' >> ~/.zshrc && source ~/.zshrc
 ```
 
 > 如果你用的是 bash 而不是 zsh，把上面的 `.zshrc` 换成 `.bashrc`。
 > Linux 用户请把 `sed -i ''` 改为 `sed -i`（去掉空引号）。
 
-**Windows (PowerShell)** — 复制以下命令执行（请将 `sk-xxx` 替换为你的实际 Key），多条直接换行即可：
+**Windows (PowerShell)：**
 ```powershell
-[Environment]::SetEnvironmentVariable("NEWCLAW_CLAUDE_API_KEY", "sk-claude-key", "User")
-[Environment]::SetEnvironmentVariable("NEWCLAW_DEEPSEEK_API_KEY", "sk-deepseek-key", "User")
-[Environment]::SetEnvironmentVariable("NEWCLAW_GEMINI_API_KEY", "sk-gemini-key", "User")
+[Environment]::SetEnvironmentVariable("NEWCLAW_API_KEY", "sk-xxx", "User")
 ```
 设置后重新打开 PowerShell 窗口即可生效。
 
@@ -192,7 +186,7 @@ sed -i '' '/NEWCLAW_CLAUDE_API_KEY/d;/NEWCLAW_CODEX_API_KEY/d;/NEWCLAW_GEMINI_AP
 
 ## 启动使用
 
-配置好 Key 后，你可以直接启动 OpenCode：
+配置好账号后，你可以直接启动 OpenCode：
 
 ```bash
 opencode
@@ -210,11 +204,14 @@ opencode --model newclaw/claude-opus-4-6
 
 本插件支持**模型列表自动同步**功能：
 
-- **每次启动** OpenCode 时，插件都会自动调用 NewClaw API 获取最新的可用模型列表
-- 新模型会自动添加到你的 `opencode.json` 配置中，无需手动更新
-- 如果 API 不可用（网络问题等），会静默跳过，不影响正常使用
+- **多 Key 发现**: 插件登录平台账号后，自动发现账号下所有已配置的令牌
+- **并行同步**: 每个令牌的可用模型并行获取，取并集注册到 KeyRegistry
+- **倍率信息**: 通过 `/api/pricing` 接口获取分组名称和倍率，模型显示名格式为 `模型名 [分组/倍率]`（例如 `Claude Opus 4.6 [默认/1x]`）
+- **所有模型直通**: API 返回的全部模型均注册，不做过滤
+- **自动降级**: 某个 key 请求失败（401/403/429）时，自动按倍率升序切换到下一个可用 key
+- **无感更新**: 如果 API 不可用（网络问题等），会静默跳过，不影响正常使用
 
-你不需要做任何额外配置，只要安装了插件并配置了 API Key，模型列表就会在每次启动时自动保持最新。
+你不需要做任何额外配置，只要安装了插件并配置了平台账号，模型列表就会在每次启动时自动保持最新。
 
 ---
 
@@ -223,18 +220,17 @@ opencode --model newclaw/claude-opus-4-6
 **Q: 首次安装后模型列表不完整？**
 这是正常现象。首次启动时，插件会从 API 同步最新模型列表并写入配置文件。由于 OpenCode 先读配置再加载插件，**第二次启动**后就能看到完整的模型列表了（之后每次启动都会自动更新）。
 
+**Q: 安装时提示输入账号密码可以跳过吗？**
+可以。直接按回车跳过即可，安装仍会正常完成。跳过后用 `opencode auth login` 配置平台账号，步骤和文档一致。
+
+**Q: 一个模型在多个令牌中都存在怎么办？**
+插件会自动选择倍率最低的令牌发起请求。如果该令牌返回 401/403/429，会自动切换到下一个，对你完全透明。
+
 **Q: 安装后还是提示 ProviderInitError?**
 这通常是因为插件没有安装在正确的目录下。请确保你是按照教程在 `~/.cache/opencode/` 目录下执行的安装命令，并且成功执行了 `postinstall` 脚本。
 
 **Q: Windows 上找不到 ~/.cache/opencode 目录?**
 Windows 下 OpenCode 的缓存目录通常在 `%LOCALAPPDATA%\opencode` 或 `%USERPROFILE%\.cache\opencode`。上面提供的 PowerShell 一键安装命令已经帮你自动处理了这个问题，请直接使用该命令。
-
-**Q: 安装报错 `Permission denied (publickey)` ？**
-这是因为 npm 默认使用 SSH 协议拉取 Git 仓库。运行以下命令强制使用 HTTPS：
-```bash
-git config --global url."https://github.com/".insteadOf "git@github.com:"
-```
-然后重新执行安装命令即可。
 
 ---
 
@@ -243,7 +239,7 @@ git config --global url."https://github.com/".insteadOf "git@github.com:"
 本插件使用 [NewClaw](https://newclaw.ai/) 作为 API 聚合服务：
 
 - 🌐 无需科学上网，全球直连
-- 🔑 一个 API Key 全模型通用
+- 🔑 一个账号自动发现所有令牌和模型
 - 💰 价格低于官方
 - 📖 [API 文档](https://newclaw.apifox.cn/)
 
