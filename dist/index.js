@@ -1,8 +1,8 @@
 // @bun
 // index.ts
-import { mkdir as mkdir3, readFile as readFile3, writeFile as writeFile3, access as access2 } from "fs/promises";
-import path3 from "path";
-import os3 from "os";
+import { mkdir as mkdir4, readFile as readFile4, writeFile as writeFile4, access as access2 } from "fs/promises";
+import path4 from "path";
+import os4 from "os";
 
 // lib/constants.ts
 var PLUGIN_NAME = "opencode-newclaw-auth";
@@ -441,6 +441,130 @@ function detectFamily(modelId) {
     return "gemini";
   return "codex";
 }
+// lib/models/key-registry.ts
+class KeyRegistry {
+  profiles = [];
+  register(profile) {
+    this.profiles.push(profile);
+  }
+  selectKeyForModel(modelId, fallbackKey) {
+    const keys = this.selectKeysForModel(modelId, fallbackKey);
+    return keys[0];
+  }
+  selectKeysForModel(modelId, fallbackKey) {
+    const candidates = [];
+    for (const profile of this.profiles) {
+      if (profile.models.includes(modelId)) {
+        candidates.push({ key: profile.key, ratio: profile.groupRatio });
+      }
+    }
+    candidates.sort((a, b) => a.ratio - b.ratio);
+    const keys = candidates.map((c) => c.key);
+    if (!keys.includes(fallbackKey)) {
+      keys.push(fallbackKey);
+    }
+    return keys.length > 0 ? keys : [fallbackKey];
+  }
+  getProfileForKey(key) {
+    return this.profiles.find((p) => p.key === key);
+  }
+  getAllModels() {
+    const result = new Map;
+    for (const profile of this.profiles) {
+      for (const modelId of profile.models) {
+        const existing = result.get(modelId);
+        if (!existing || profile.groupRatio < existing.groupRatio) {
+          result.set(modelId, profile);
+        }
+      }
+    }
+    return result;
+  }
+  getProfilesForModel(modelId) {
+    return this.profiles.filter((p) => p.models.includes(modelId));
+  }
+  clear() {
+    this.profiles = [];
+  }
+  getProfiles() {
+    return [...this.profiles];
+  }
+}
+var keyRegistry = new KeyRegistry;
+// lib/models/pricing.ts
+var PRICING_API_URL = "https://newclaw.ai/api/pricing";
+var PRICING_TIMEOUT_MS = 1e4;
+var PACKAGE_NAME = "opencode-newclaw-auth";
+async function fetchPricing() {
+  try {
+    const controller = new AbortController;
+    const timeout = setTimeout(() => controller.abort(), PRICING_TIMEOUT_MS);
+    try {
+      const response = await fetch(PRICING_API_URL, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      if (!response.ok) {
+        console.warn(`[${PACKAGE_NAME}] Pricing API returned HTTP ${response.status}`);
+        return;
+      }
+      const body = await response.json();
+      if (!body?.success || !body?.data?.model_group) {
+        console.warn(`[${PACKAGE_NAME}] Pricing API returned invalid data`);
+        return;
+      }
+      return body.data;
+    } finally {
+      clearTimeout(timeout);
+    }
+  } catch {
+    console.warn(`[${PACKAGE_NAME}] Pricing API fetch failed (network error or timeout)`);
+    return;
+  }
+}
+function detectKeyGroup(tokenModels, pricingData) {
+  if (tokenModels.length === 0)
+    return;
+  const tokenSet = new Set(tokenModels);
+  let bestGroup;
+  let bestScore = 0;
+  for (const [groupName, groupInfo2] of Object.entries(pricingData.model_group)) {
+    const groupModelIds = Object.keys(groupInfo2.ModelPrice);
+    if (groupModelIds.length === 0)
+      continue;
+    let matchCount = 0;
+    for (const modelId of tokenModels) {
+      if (modelId in groupInfo2.ModelPrice) {
+        matchCount++;
+      }
+    }
+    const score = matchCount / tokenModels.length;
+    if (score > bestScore) {
+      bestScore = score;
+      bestGroup = groupName;
+    }
+  }
+  if (!bestGroup || bestScore < 0.5)
+    return;
+  const groupInfo = pricingData.model_group[bestGroup];
+  return {
+    groupName: bestGroup,
+    displayName: getGroupDisplayName(groupInfo.DisplayName),
+    groupRatio: groupInfo.GroupRatio
+  };
+}
+function getGroupDisplayName(rawDisplayName) {
+  if (!rawDisplayName)
+    return "";
+  const firstPart = rawDisplayName.split(";")[0].trim();
+  return firstPart || rawDisplayName.trim();
+}
+function buildDisplayName(baseName, groupDisplayName, groupRatio) {
+  const ratioStr = Math.floor(groupRatio) === groupRatio ? `${groupRatio}x` : `${groupRatio.toFixed(1)}x`;
+  return `${baseName} [${groupDisplayName}/${ratioStr}]`;
+}
 // lib/provider-config.json
 var provider_config_default = {
   name: "NewClaw",
@@ -786,47 +910,196 @@ async function syncOmoConfig() {
 }
 
 // lib/models/auto-sync.ts
+import { readFile as readFile3, writeFile as writeFile3, mkdir as mkdir3 } from "fs/promises";
+import path3 from "path";
+import os3 from "os";
+
+// lib/auth/system-auth.ts
 import { readFile as readFile2, writeFile as writeFile2, mkdir as mkdir2 } from "fs/promises";
 import path2 from "path";
 import os2 from "os";
-var API_TIMEOUT_MS = 1e4;
-var PACKAGE_NAME = "opencode-newclaw-auth";
-var PROVIDER_ID3 = "newclaw";
-var CODING_MODEL_PREFIXES = [
-  "claude-",
-  "gpt-",
-  "o1-",
-  "o3-",
-  "o4-",
-  "deepseek-",
-  "grok-",
-  "codex-",
-  "gemini-"
-];
-var SKIP_PATTERNS = [
-  /^gpt-3/,
-  /^gpt-4(?!o)/i,
-  /embedding/i,
-  /whisper/i,
-  /tts/i,
-  /dall-e/i,
-  /moderation/i,
-  /realtime/i,
-  /audio/i
-];
-var homeDir2 = process.env.OPENCODE_TEST_HOME || os2.homedir();
-function getConfigPaths() {
-  const configRoot2 = process.env.XDG_CONFIG_HOME || path2.join(homeDir2, ".config");
-  const dir = path2.join(configRoot2, "opencode");
+var PACKAGE_NAME2 = "opencode-newclaw-auth";
+var BASE_URL = "https://newclaw.ai";
+var API_TIMEOUT_MS = 15000;
+var TOKEN_PAGE_SIZE = 100;
+function getPluginDir() {
+  return path2.resolve(import.meta.dirname ?? path2.join(os2.homedir(), ".cache", "opencode", "node_modules", PACKAGE_NAME2));
+}
+function getCredentialsPath() {
+  return path2.join(getPluginDir(), ".newclaw-credentials");
+}
+async function readCredentials() {
+  try {
+    const raw = await readFile2(getCredentialsPath(), "utf-8");
+    const parsed = JSON.parse(raw);
+    if (parsed?.username && parsed?.password) {
+      return { username: parsed.username, password: parsed.password };
+    }
+  } catch {}
+  return;
+}
+async function saveCredentials(creds) {
+  const filePath = getCredentialsPath();
+  await mkdir2(path2.dirname(filePath), { recursive: true });
+  await writeFile2(filePath, JSON.stringify(creds, null, 2) + `
+`, "utf-8");
+}
+async function timedFetch(url, options) {
+  const controller = new AbortController;
+  const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+async function systemLogin(creds) {
+  try {
+    const loginRes = await timedFetch(`${BASE_URL}/api/user/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: creds.username, password: creds.password }),
+      redirect: "manual"
+    });
+    if (!loginRes.ok) {
+      const body = await loginRes.json().catch(() => ({}));
+      console.warn(`[${PACKAGE_NAME2}] Login failed: ${body.message ?? loginRes.status}`);
+      return;
+    }
+    const loginData = await loginRes.json();
+    if (!loginData.success)
+      return;
+    if (loginData.data?.require_2fa) {
+      console.warn(`[${PACKAGE_NAME2}] 2FA is enabled on this account \u2014 not supported in CLI mode`);
+      return;
+    }
+    const userId = loginData.data?.id;
+    if (!userId)
+      return;
+    const setCookieHeaders = loginRes.headers.getSetCookie?.() ?? [];
+    const cookieStr = setCookieHeaders.map((c) => c.split(";")[0]).join("; ");
+    const tokenRes = await timedFetch(`${BASE_URL}/api/user/self/token`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: cookieStr,
+        "New-Api-User": String(userId)
+      }
+    });
+    if (!tokenRes.ok) {
+      console.warn(`[${PACKAGE_NAME2}] Failed to get access token: HTTP ${tokenRes.status}`);
+      return;
+    }
+    const tokenData = await tokenRes.json();
+    if (!tokenData.success || !tokenData.data)
+      return;
+    return { userId, accessToken: tokenData.data };
+  } catch (err) {
+    console.warn(`[${PACKAGE_NAME2}] System login error: ${err instanceof Error ? err.message : err}`);
+    return;
+  }
+}
+function systemHeaders(session) {
   return {
-    json: path2.join(dir, "opencode.json"),
-    jsonc: path2.join(dir, "opencode.jsonc"),
+    "Content-Type": "application/json",
+    Authorization: session.accessToken,
+    "New-Api-User": String(session.userId)
+  };
+}
+async function fetchAllTokens(session) {
+  const tokens = [];
+  let page = 1;
+  let total = Infinity;
+  while (tokens.length < total) {
+    try {
+      const res = await timedFetch(`${BASE_URL}/api/token/?p=${page}&page_size=${TOKEN_PAGE_SIZE}`, { method: "GET", headers: systemHeaders(session) });
+      if (!res.ok)
+        break;
+      const data = await res.json();
+      if (!data.success || !data.data)
+        break;
+      total = data.data.total;
+      const items = data.data.items ?? [];
+      if (items.length === 0)
+        break;
+      for (const item of items) {
+        if (item.status !== 1)
+          continue;
+        tokens.push({
+          id: item.id,
+          key: item.key,
+          name: item.name,
+          group: item.group,
+          status: item.status,
+          models: item.model_limits,
+          modelLimitsEnabled: item.model_limits_enabled
+        });
+      }
+      page++;
+    } catch {
+      break;
+    }
+  }
+  return tokens;
+}
+async function fetchTokenKey(session, tokenId) {
+  try {
+    const res = await timedFetch(`${BASE_URL}/api/token/${tokenId}/key`, { method: "POST", headers: systemHeaders(session) });
+    if (!res.ok)
+      return;
+    const data = await res.json();
+    if (!data.success || !data.data?.key)
+      return;
+    return data.data.key;
+  } catch {
+    return;
+  }
+}
+async function discoverAllTokenKeys(creds) {
+  const session = await systemLogin(creds);
+  if (!session)
+    return;
+  console.log(`[${PACKAGE_NAME2}] System login successful (userId=${session.userId})`);
+  const tokens = await fetchAllTokens(session);
+  if (tokens.length === 0) {
+    console.warn(`[${PACKAGE_NAME2}] No active tokens found for this account`);
+    return;
+  }
+  console.log(`[${PACKAGE_NAME2}] Found ${tokens.length} active token(s), resolving keys...`);
+  const results = await Promise.allSettled(tokens.map(async (t) => {
+    const fullKey = await fetchTokenKey(session, t.id);
+    return fullKey ? { key: fullKey, group: t.group, name: t.name, tokenId: t.id } : undefined;
+  }));
+  const resolved = results.filter((r) => r.status === "fulfilled").map((r) => r.value).filter((v) => v !== undefined);
+  if (resolved.length === 0) {
+    console.warn(`[${PACKAGE_NAME2}] Could not resolve any token keys`);
+    return;
+  }
+  console.log(`[${PACKAGE_NAME2}] Resolved ${resolved.length} token key(s)`);
+  return resolved;
+}
+
+// lib/models/auto-sync.ts
+var API_TIMEOUT_MS2 = 1e4;
+var PACKAGE_NAME3 = "opencode-newclaw-auth";
+var PROVIDER_ID3 = "newclaw";
+var homeDir2 = process.env.OPENCODE_TEST_HOME || os3.homedir();
+function getConfigPaths() {
+  const configRoot2 = process.env.XDG_CONFIG_HOME || path3.join(homeDir2, ".config");
+  const dir = path3.join(configRoot2, "opencode");
+  return {
+    json: path3.join(dir, "opencode.json"),
+    jsonc: path3.join(dir, "opencode.jsonc"),
     dir
   };
 }
+function getKeyRegistryCachePath() {
+  const configRoot2 = process.env.XDG_CONFIG_HOME || path3.join(homeDir2, ".config");
+  return path3.join(configRoot2, "opencode", "newclaw-key-registry.json");
+}
 async function readJsonSafe(filePath) {
   try {
-    const text = await readFile2(filePath, "utf-8");
+    const text = await readFile3(filePath, "utf-8");
     const stripped = filePath.endsWith(".jsonc") ? text.replace(/\\"|"(?:\\"|[^"])*"|(\/\/.*|\/\*[\s\S]*?\*\/)/g, (m, g) => g ? "" : m).replace(/,(\s*[}\]])/g, "$1") : text;
     return JSON.parse(stripped);
   } catch {
@@ -835,19 +1108,11 @@ async function readJsonSafe(filePath) {
 }
 async function fileExists2(filePath) {
   try {
-    await readFile2(filePath);
+    await readFile3(filePath);
     return true;
   } catch {
     return false;
   }
-}
-function isCodingModel(modelId) {
-  const lower = modelId.toLowerCase();
-  const matchesPrefix = CODING_MODEL_PREFIXES.some((prefix) => lower.startsWith(prefix));
-  if (!matchesPrefix)
-    return false;
-  const shouldSkip = SKIP_PATTERNS.some((pattern) => pattern.test(lower));
-  return !shouldSkip;
 }
 function modelIdToDisplayName(id) {
   return id.split("-").map((part) => {
@@ -858,93 +1123,41 @@ function modelIdToDisplayName(id) {
 }
 function detectModalities(modelId) {
   const lower = modelId.toLowerCase();
-  if (lower.startsWith("deepseek-")) {
+  if (lower.startsWith("deepseek-"))
     return { input: ["text"], output: ["text"] };
-  }
   return { input: ["text", "image"], output: ["text"] };
 }
 function detectLimits(modelId) {
   const lower = modelId.toLowerCase();
-  if (lower.includes("codex") || lower.startsWith("gpt-5")) {
+  if (lower.includes("codex") || lower.startsWith("gpt-5"))
     return { context: 400000, output: 128000 };
-  }
   if (lower.startsWith("claude-")) {
     if (lower.includes("haiku"))
       return { context: 200000, output: 8192 };
     return { context: 200000, output: 64000 };
   }
-  if (lower.startsWith("deepseek-")) {
+  if (lower.startsWith("deepseek-"))
     return { context: 128000, output: 64000 };
-  }
-  if (lower.startsWith("o1-") || lower.startsWith("o3-") || lower.startsWith("o4-")) {
+  if (lower.startsWith("o1-") || lower.startsWith("o3-") || lower.startsWith("o4-"))
     return { context: 200000, output: 1e5 };
-  }
-  if (lower.startsWith("grok-")) {
+  if (lower.startsWith("grok-"))
     return { context: 200000, output: 1e5 };
-  }
-  if (lower.startsWith("gemini-")) {
+  if (lower.startsWith("gemini-"))
     return { context: 1e6, output: 65536 };
-  }
   return { context: 128000, output: 32000 };
 }
-function apiModelsToConfig(apiModels) {
-  const result = {};
-  for (const model of apiModels) {
-    if (!isCodingModel(model.id))
-      continue;
-    result[model.id] = {
-      name: modelIdToDisplayName(model.id),
-      limit: detectLimits(model.id),
-      modalities: detectModalities(model.id)
-    };
-  }
-  return result;
-}
-async function fetchModelsFromApi(apiKey) {
-  try {
-    const headers = {
-      "Content-Type": "application/json"
-    };
-    if (apiKey) {
-      headers["Authorization"] = `Bearer ${apiKey}`;
-    }
-    const controller = new AbortController;
-    const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
-    try {
-      const response = await fetch("https://newclaw.ai/v1/models", {
-        method: "GET",
-        headers,
-        signal: controller.signal
-      });
-      clearTimeout(timeout);
-      if (!response.ok) {
-        console.warn(`[${PACKAGE_NAME}] Model sync: API returned HTTP ${response.status}`);
-        return;
-      }
-      const data = await response.json();
-      if (!data || !Array.isArray(data.data)) {
-        return;
-      }
-      return data.data;
-    } finally {
-      clearTimeout(timeout);
-    }
-  } catch {
-    return;
-  }
-}
-async function getApiKey() {
+async function getAuthKey() {
   const envKey = process.env.NEWCLAW_API_KEY;
   if (envKey?.trim())
     return envKey.trim();
   const dataDirs = [
-    process.env.XDG_DATA_HOME || path2.join(homeDir2, ".local", "share"),
-    process.env.XDG_CONFIG_HOME || path2.join(homeDir2, ".config")
+    process.env.XDG_DATA_HOME || path3.join(homeDir2, ".local", "share"),
+    process.env.XDG_CONFIG_HOME || path3.join(homeDir2, ".config")
   ];
   for (const dataDir of dataDirs) {
     try {
-      const authPath = path2.join(dataDir, "opencode", "auth.json");
-      const raw = await readFile2(authPath, "utf-8");
+      const authPath = path3.join(dataDir, "opencode", "auth.json");
+      const raw = await readFile3(authPath, "utf-8");
       const auth = JSON.parse(raw);
       const newclawAuth = auth?.[PROVIDER_ID3] ?? auth?.newclaw;
       if (newclawAuth?.key?.trim())
@@ -953,30 +1166,137 @@ async function getApiKey() {
   }
   return;
 }
-async function syncModelsFromApi() {
-  try {
-    const apiKey = await getApiKey();
-    if (!apiKey) {
-      console.log(`[${PACKAGE_NAME}] Model sync skipped: no API key found (run 'opencode auth login' first)`);
-      return false;
+async function getConfigKeys() {
+  const paths = getConfigPaths();
+  const configPath = await fileExists2(paths.jsonc) ? paths.jsonc : paths.json;
+  const config = await readJsonSafe(configPath);
+  if (!config)
+    return [];
+  const providerConfig = config?.provider?.[PROVIDER_ID3];
+  if (!providerConfig || typeof providerConfig !== "object")
+    return [];
+  const keys = providerConfig.keys;
+  if (!Array.isArray(keys))
+    return [];
+  return keys.filter((k) => typeof k === "object" && k !== null && ("key" in k) && typeof k.key === "string").map((k) => ({ key: k.key.trim(), label: k.label })).filter((k) => k.key.length > 0);
+}
+async function gatherAllKeys() {
+  const seen = new Set;
+  const entries = [];
+  const creds = await readCredentials();
+  if (creds) {
+    const tokenKeys = await discoverAllTokenKeys(creds);
+    if (tokenKeys && tokenKeys.length > 0) {
+      for (const tk of tokenKeys) {
+        if (!seen.has(tk.key)) {
+          seen.add(tk.key);
+          entries.push({ key: tk.key, label: tk.name || tk.group });
+        }
+      }
     }
-    console.log(`[${PACKAGE_NAME}] Syncing models from NewClaw API...`);
-    const apiModels = await fetchModelsFromApi(apiKey);
-    if (!apiModels || apiModels.length === 0) {
-      console.warn(`[${PACKAGE_NAME}] Model sync: API returned no models (check network or API key)`);
-      return false;
-    }
-    console.log(`[${PACKAGE_NAME}] API returned ${apiModels.length} models, filtering coding models...`);
-    const modelConfigs = apiModelsToConfig(apiModels);
-    if (Object.keys(modelConfigs).length === 0) {
-      console.warn(`[${PACKAGE_NAME}] Model sync: no coding models found after filtering`);
-      return false;
-    }
-    return await updateConfigModels(modelConfigs);
-  } catch (err) {
-    console.warn(`[${PACKAGE_NAME}] Model auto-sync failed: ${err instanceof Error ? err.message : err}`);
-    return false;
   }
+  const authKey = await getAuthKey();
+  if (authKey && !seen.has(authKey)) {
+    seen.add(authKey);
+    entries.push({ key: authKey });
+  }
+  const configKeys = await getConfigKeys();
+  for (const ck of configKeys) {
+    if (!seen.has(ck.key)) {
+      seen.add(ck.key);
+      entries.push(ck);
+    }
+  }
+  return { entries, authKey };
+}
+async function fetchModelsForKey(apiKey) {
+  try {
+    const controller = new AbortController;
+    const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS2);
+    try {
+      const response = await fetch("https://newclaw.ai/v1/models", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`
+        },
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      if (!response.ok)
+        return;
+      const data = await response.json();
+      if (!data || !Array.isArray(data.data))
+        return;
+      return data.data.map((m) => m.id);
+    } finally {
+      clearTimeout(timeout);
+    }
+  } catch {
+    return;
+  }
+}
+async function discoverKeyProfile(entry, source, pricingData) {
+  const models = await fetchModelsForKey(entry.key);
+  if (!models || models.length === 0)
+    return;
+  let groupName = "unknown";
+  let groupDisplayName = "\u672A\u77E5\u5206\u7EC4";
+  let groupRatio = 1;
+  if (pricingData) {
+    const detected = detectKeyGroup(models, pricingData);
+    if (detected) {
+      groupName = detected.groupName;
+      groupDisplayName = detected.displayName;
+      groupRatio = detected.groupRatio;
+    }
+  }
+  return { key: entry.key, groupName, groupDisplayName, groupRatio, models, source };
+}
+function maskKey(key) {
+  if (key.length <= 8)
+    return key;
+  return key.slice(0, 4) + "****" + key.slice(-4);
+}
+async function saveKeyRegistryCache(profiles) {
+  try {
+    const cachePath = getKeyRegistryCachePath();
+    const data = {
+      profiles: profiles.map((p) => ({
+        keyPrefix: maskKey(p.key),
+        groupName: p.groupName,
+        groupDisplayName: p.groupDisplayName,
+        groupRatio: p.groupRatio,
+        models: p.models,
+        source: p.source
+      })),
+      timestamp: Date.now()
+    };
+    await mkdir3(path3.dirname(cachePath), { recursive: true });
+    await writeFile3(cachePath, JSON.stringify(data, null, 2) + `
+`, "utf-8");
+  } catch {}
+}
+function getModelDisplayName(modelId, pricingData) {
+  const pricingName = pricingData?.model_info?.[modelId]?.name;
+  if (pricingName && pricingName !== modelId) {
+    return pricingName;
+  }
+  return modelIdToDisplayName(modelId);
+}
+function buildEnrichedModelConfigs(pricingData) {
+  const allModels = keyRegistry.getAllModels();
+  const result = {};
+  for (const [modelId, bestProfile] of allModels) {
+    const baseName = getModelDisplayName(modelId, pricingData);
+    const displayName = buildDisplayName(baseName, bestProfile.groupDisplayName, bestProfile.groupRatio);
+    result[modelId] = {
+      name: displayName,
+      limit: detectLimits(modelId),
+      modalities: detectModalities(modelId)
+    };
+  }
+  return result;
 }
 async function updateConfigModels(newModels) {
   const paths = getConfigPaths();
@@ -990,15 +1310,20 @@ async function updateConfigModels(newModels) {
   const provider = providerMap[PROVIDER_ID3] && typeof providerMap[PROVIDER_ID3] === "object" ? providerMap[PROVIDER_ID3] : {};
   const existingModels = provider.models && typeof provider.models === "object" ? provider.models : {};
   const mergedModels = {};
-  for (const [id, config2] of Object.entries(newModels)) {
-    mergedModels[id] = config2;
+  for (const [id, cfg] of Object.entries(newModels)) {
+    mergedModels[id] = cfg;
   }
   for (const [id, existingConfig] of Object.entries(existingModels)) {
     if (typeof existingConfig === "object" && existingConfig !== null) {
-      mergedModels[id] = {
-        ...mergedModels[id],
-        ...existingConfig
-      };
+      const existing = existingConfig;
+      if (mergedModels[id]) {
+        if (existing.limit)
+          mergedModels[id].limit = existing.limit;
+        if (existing.modalities)
+          mergedModels[id].modalities = existing.modalities;
+      } else {
+        mergedModels[id] = existingConfig;
+      }
     }
   }
   const existingKeys = Object.keys(existingModels).sort().join(",");
@@ -1017,25 +1342,60 @@ async function updateConfigModels(newModels) {
   provider.models = mergedModels;
   providerMap[PROVIDER_ID3] = provider;
   config.provider = providerMap;
-  await mkdir2(paths.dir, { recursive: true });
-  await writeFile2(configPath, `${JSON.stringify(config, null, 2)}
+  await mkdir3(paths.dir, { recursive: true });
+  await writeFile3(configPath, `${JSON.stringify(config, null, 2)}
 `, "utf-8");
   const modelCount = Object.keys(mergedModels).length;
-  console.log(`[${PACKAGE_NAME}] Synced ${modelCount} models from NewClaw API`);
+  console.log(`[${PACKAGE_NAME3}] Synced ${modelCount} models to config`);
   return true;
+}
+async function syncModelsFromApi() {
+  try {
+    const { entries, authKey } = await gatherAllKeys();
+    if (entries.length === 0) {
+      console.log(`[${PACKAGE_NAME3}] Model sync skipped: no API key found (run 'opencode auth login' first)`);
+      return false;
+    }
+    console.log(`[${PACKAGE_NAME3}] Syncing models from NewClaw API (${entries.length} key(s))...`);
+    const pricing = await fetchPricing();
+    const discoveryResults = await Promise.allSettled(entries.map((entry, i) => discoverKeyProfile(entry, i === 0 && authKey ? "auth" : "config", pricing)));
+    keyRegistry.clear();
+    for (const result of discoveryResults) {
+      if (result.status === "fulfilled" && result.value) {
+        keyRegistry.register(result.value);
+        const p = result.value;
+        console.log(`[${PACKAGE_NAME3}] Key ${maskKey(p.key)}: ${p.models.length} models, group="${p.groupName}" (${p.groupDisplayName}, ${p.groupRatio}x)`);
+      }
+    }
+    const profiles = keyRegistry.getProfiles();
+    if (profiles.length === 0) {
+      console.warn(`[${PACKAGE_NAME3}] Model sync: no valid keys returned models`);
+      return false;
+    }
+    await saveKeyRegistryCache(profiles);
+    const enrichedModels = buildEnrichedModelConfigs(pricing);
+    if (Object.keys(enrichedModels).length === 0) {
+      console.warn(`[${PACKAGE_NAME3}] Model sync: no models found`);
+      return false;
+    }
+    return await updateConfigModels(enrichedModels);
+  } catch (err) {
+    console.warn(`[${PACKAGE_NAME3}] Model auto-sync failed: ${err instanceof Error ? err.message : err}`);
+    return false;
+  }
 }
 
 // index.ts
 var CODEX_MODEL_PREFIXES = ["gpt-", "codex"];
-var PACKAGE_NAME2 = "opencode-newclaw-auth";
-var PLUGIN_ENTRY = PACKAGE_NAME2;
-var PROVIDER_NPM = `file://${path3.resolve(import.meta.dirname, "provider.js")}`;
+var PACKAGE_NAME4 = "opencode-newclaw-auth";
+var PLUGIN_ENTRY = PACKAGE_NAME4;
+var PROVIDER_NPM = `file://${path4.resolve(import.meta.dirname, "provider.js")}`;
 var DEFAULT_OUTPUT_TOKEN_MAX = 32000;
-var homeDir3 = process.env.OPENCODE_TEST_HOME || os3.homedir();
-var configRoot2 = process.env.XDG_CONFIG_HOME || path3.join(homeDir3, ".config");
-var configDir2 = path3.join(configRoot2, "opencode");
-var configPathJson = path3.join(configDir2, "opencode.json");
-var configPathJsonc = path3.join(configDir2, "opencode.jsonc");
+var homeDir3 = process.env.OPENCODE_TEST_HOME || os4.homedir();
+var configRoot2 = process.env.XDG_CONFIG_HOME || path4.join(homeDir3, ".config");
+var configDir2 = path4.join(configRoot2, "opencode");
+var configPathJson = path4.join(configDir2, "opencode.json");
+var configPathJsonc = path4.join(configDir2, "opencode.jsonc");
 var ensureConfigPromise;
 var fileExists3 = async (filePath) => {
   try {
@@ -1050,7 +1410,7 @@ var stripJsonComments = (content) => {
 };
 var readJsonOrJsonc = async (filePath) => {
   try {
-    const text = await readFile3(filePath, "utf-8");
+    const text = await readFile4(filePath, "utf-8");
     const stripped = filePath.endsWith(".jsonc") ? stripJsonComments(text) : text;
     return JSON.parse(stripped);
   } catch {
@@ -1080,11 +1440,11 @@ var deepEqual = (a, b) => {
   }
   return true;
 };
-var isPackageEntry = (value) => value === PACKAGE_NAME2 || value.startsWith(`${PACKAGE_NAME2}@`);
+var isPackageEntry = (value) => value === PACKAGE_NAME4 || value.startsWith(`${PACKAGE_NAME4}@`);
 var ensurePluginEntry = (list) => {
   if (!Array.isArray(list))
     return [PLUGIN_ENTRY];
-  const filtered = list.filter((entry) => !(typeof entry === "string" && entry.startsWith("file://") && entry.includes(PACKAGE_NAME2)));
+  const filtered = list.filter((entry) => !(typeof entry === "string" && entry.startsWith("file://") && entry.includes(PACKAGE_NAME4)));
   const hasPlugin = filtered.some((entry) => typeof entry === "string" && (entry === PLUGIN_ENTRY || isPackageEntry(entry)));
   if (hasPlugin) {
     return filtered.length === list.length ? list : filtered;
@@ -1138,8 +1498,8 @@ var ensureConfigFile = async () => {
     const changed = applyProviderConfig(config);
     if (!changed)
       return;
-    await mkdir3(configDir2, { recursive: true });
-    await writeFile3(configPath, `${JSON.stringify(config, null, 2)}
+    await mkdir4(configDir2, { recursive: true });
+    await writeFile4(configPath, `${JSON.stringify(config, null, 2)}
 `, "utf-8");
   })().catch((err) => {
     ensureConfigPromise = undefined;
@@ -1207,13 +1567,13 @@ var getOutputTokenLimit = (input, output) => {
 };
 var NewclawAuthPlugin = async (ctx) => {
   await ensureConfigFile().catch((error) => {
-    console.warn(`[${PACKAGE_NAME2}] Failed to update config: ${error instanceof Error ? error.message : error}`);
+    console.warn(`[${PACKAGE_NAME4}] Failed to update config: ${error instanceof Error ? error.message : error}`);
   });
   await syncModelsFromApi().catch((error) => {
-    console.warn(`[${PACKAGE_NAME2}] Model auto-sync failed: ${error instanceof Error ? error.message : error}`);
+    console.warn(`[${PACKAGE_NAME4}] Model auto-sync failed: ${error instanceof Error ? error.message : error}`);
   });
   syncOmoConfig().catch((error) => {
-    console.warn(`[${PACKAGE_NAME2}] Failed to sync OMO config: ${error instanceof Error ? error.message : error}`);
+    console.warn(`[${PACKAGE_NAME4}] Failed to sync OMO config: ${error instanceof Error ? error.message : error}`);
   });
   const authHook = {
     provider: PROVIDER_ID,
@@ -1232,48 +1592,71 @@ var NewclawAuthPlugin = async (ctx) => {
           const { model, isStreaming } = parseRequestBody(init);
           const modelId = model ? stripProviderPrefix(model) : "";
           const family = detectFamily(modelId);
-          const resolvedApiKey = resolveApiKeyForFamily(family, apiKey);
+          const candidateKeys = keyRegistry.selectKeysForModel(modelId, apiKey);
           const isClaudeRequest = isModel(model, "claude-") || isClaudeUrl(originalUrl);
           const isCodexRequest = !isClaudeRequest && isCodexModel(model);
-          if (isCodexRequest) {
-            const transformation = await transformRequestForCodex(init);
-            let requestInit = transformation?.updatedInit ?? init;
-            if (!transformation && init?.body) {
-              const sanitized = sanitizeRequestBody(init.body);
-              requestInit = { ...init, body: sanitized };
+          const isFailoverStatus = (status) => status === 401 || status === 403 || status === 429;
+          for (let ki = 0;ki < candidateKeys.length; ki++) {
+            const currentKey = resolveApiKeyForFamily(family, candidateKeys[ki]);
+            const isLastKey = ki === candidateKeys.length - 1;
+            try {
+              if (isCodexRequest) {
+                const transformation = await transformRequestForCodex(init);
+                let requestInit = transformation?.updatedInit ?? init;
+                if (!transformation && init?.body) {
+                  const sanitized = sanitizeRequestBody(init.body);
+                  requestInit = { ...init, body: sanitized };
+                }
+                const headers3 = createNewclawHeaders(requestInit, currentKey, {
+                  promptCacheKey: transformation?.body.prompt_cache_key
+                });
+                const targetUrl = rewriteUrl(originalUrl, CODEX_BASE_URL);
+                const response2 = await fetch(targetUrl, {
+                  ...requestInit,
+                  headers: headers3
+                });
+                await saveResponseIfEnabled(response2.clone(), "codex", { url: targetUrl, model: modelId });
+                if (!response2.ok) {
+                  if (!isLastKey && isFailoverStatus(response2.status))
+                    continue;
+                  return await handleErrorResponse(response2);
+                }
+                return await handleSuccessResponse(response2, isStreaming);
+              }
+              if (isClaudeRequest) {
+                const targetUrl = rewriteUrl(originalUrl, NEWCLAW_ANTHROPIC_BASE_URL);
+                let transformedInit = transformClaudeRequest(init);
+                const finalInit = transformedInit ?? init;
+                const headers3 = new Headers(finalInit?.headers ?? {});
+                headers3.set("x-api-key", currentKey);
+                headers3.set("anthropic-version", "2023-06-01");
+                if (!headers3.has(HEADER_NAMES.CONTENT_TYPE)) {
+                  headers3.set(HEADER_NAMES.CONTENT_TYPE, "application/json");
+                }
+                const response2 = await fetch(targetUrl, {
+                  ...finalInit,
+                  headers: headers3
+                });
+                if (!response2.ok) {
+                  if (!isLastKey && isFailoverStatus(response2.status))
+                    continue;
+                  const savedResponse2 = await saveResponseIfEnabled(response2, "claude", { url: targetUrl, model: modelId });
+                  return transformClaudeResponse(savedResponse2);
+                }
+                const savedResponse = await saveResponseIfEnabled(response2, "claude", { url: targetUrl, model: modelId });
+                return transformClaudeResponse(savedResponse);
+              }
+              const headers2 = createNewclawHeaders(init, currentKey);
+              const response = await fetch(originalUrl, { ...init, headers: headers2 });
+              if (!response.ok && !isLastKey && isFailoverStatus(response.status))
+                continue;
+              return response;
+            } catch (err) {
+              if (isLastKey)
+                throw err;
             }
-            const headers2 = createNewclawHeaders(requestInit, resolvedApiKey, {
-              promptCacheKey: transformation?.body.prompt_cache_key
-            });
-            const targetUrl = rewriteUrl(originalUrl, CODEX_BASE_URL);
-            const response = await fetch(targetUrl, {
-              ...requestInit,
-              headers: headers2
-            });
-            await saveResponseIfEnabled(response.clone(), "codex", { url: targetUrl, model: modelId });
-            if (!response.ok) {
-              return await handleErrorResponse(response);
-            }
-            return await handleSuccessResponse(response, isStreaming);
           }
-          if (isClaudeRequest) {
-            const targetUrl = rewriteUrl(originalUrl, NEWCLAW_ANTHROPIC_BASE_URL);
-            let transformedInit = transformClaudeRequest(init);
-            const finalInit = transformedInit ?? init;
-            const headers2 = new Headers(finalInit?.headers ?? {});
-            headers2.set("x-api-key", resolvedApiKey);
-            headers2.set("anthropic-version", "2023-06-01");
-            if (!headers2.has(HEADER_NAMES.CONTENT_TYPE)) {
-              headers2.set(HEADER_NAMES.CONTENT_TYPE, "application/json");
-            }
-            const response = await fetch(targetUrl, {
-              ...finalInit,
-              headers: headers2
-            });
-            const savedResponse = await saveResponseIfEnabled(response, "claude", { url: targetUrl, model: modelId });
-            return transformClaudeResponse(savedResponse);
-          }
-          const headers = createNewclawHeaders(init, resolvedApiKey);
+          const headers = createNewclawHeaders(init, resolveApiKeyForFamily(family, apiKey));
           return await fetch(originalUrl, { ...init, headers });
         }
       };
@@ -1285,16 +1668,30 @@ var NewclawAuthPlugin = async (ctx) => {
         prompts: [
           {
             type: "text",
-            key: "apiKey",
-            message: "NewClaw API key",
-            placeholder: "sk-..."
+            key: "username",
+            message: "NewClaw \u8D26\u53F7\uFF08\u7528\u6237\u540D\u6216\u90AE\u7BB1\uFF09",
+            placeholder: "your_username"
+          },
+          {
+            type: "text",
+            key: "password",
+            message: "NewClaw \u5BC6\u7801",
+            placeholder: "your_password"
           }
         ],
         authorize: async (inputs) => {
-          const key = inputs?.apiKey?.trim();
-          if (!key)
+          const username = inputs?.username?.trim();
+          const password = inputs?.password?.trim();
+          if (!username || !password)
             return { type: "failed" };
-          return { type: "success", key };
+          const creds = { username, password };
+          const tokenKeys = await discoverAllTokenKeys(creds);
+          if (!tokenKeys || tokenKeys.length === 0) {
+            return { type: "failed" };
+          }
+          await saveCredentials(creds);
+          const primaryKey = tokenKeys[0].key;
+          return { type: "success", key: primaryKey };
         }
       }
     ]

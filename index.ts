@@ -32,10 +32,11 @@ import {
 } from "./lib/request/fetch-helpers"
 import { transformClaudeRequest, transformClaudeResponse } from "./lib/request/claude-tools-transform"
 import { saveRawResponse, SAVE_RAW_RESPONSE_ENABLED } from "./lib/logger"
-import { detectFamily, resolveApiKeyForFamily } from "./lib/models"
+import { detectFamily, resolveApiKeyForFamily, keyRegistry } from "./lib/models"
 import STANDARD_PROVIDER_CONFIG from "./lib/provider-config.json"
 import { syncOmoConfig } from "./lib/hooks/omo-config-sync"
 import { syncModelsFromApi } from "./lib/models/auto-sync"
+import { saveCredentials, discoverAllTokenKeys } from "./lib/auth/system-auth"
 
 const CODEX_MODEL_PREFIXES = ["gpt-", "codex"]
 const PACKAGE_NAME = "opencode-newclaw-auth"
@@ -298,66 +299,94 @@ export const NewclawAuthPlugin: Plugin = async (ctx: PluginInput) => {
           const originalUrl = extractRequestUrl(input)
           const { model, isStreaming } = parseRequestBody(init)
           
-          // Determine model family and resolve the correct API key
+          // Priority: env var override > keyRegistry match > auth.json unified key
           const modelId = model ? stripProviderPrefix(model) : ""
           const family = detectFamily(modelId)
-          const resolvedApiKey = resolveApiKeyForFamily(family, apiKey)
+          const candidateKeys = keyRegistry.selectKeysForModel(modelId, apiKey)
 
           const isClaudeRequest = isModel(model, "claude-") || isClaudeUrl(originalUrl)
           const isCodexRequest = !isClaudeRequest && isCodexModel(model)
 
-          if (isCodexRequest) {
-            const transformation = await transformRequestForCodex(init)
-            let requestInit = transformation?.updatedInit ?? init
+          // Failover: 401/403/429 triggers next key; other errors return immediately
+          const isFailoverStatus = (status: number) => status === 401 || status === 403 || status === 429
 
-            if (!transformation && init?.body) {
-              const sanitized = sanitizeRequestBody(init.body as string)
-              requestInit = { ...init, body: sanitized }
+          for (let ki = 0; ki < candidateKeys.length; ki++) {
+            const currentKey = resolveApiKeyForFamily(family, candidateKeys[ki])
+            const isLastKey = ki === candidateKeys.length - 1
+
+            try {
+              if (isCodexRequest) {
+                const transformation = await transformRequestForCodex(init)
+                let requestInit = transformation?.updatedInit ?? init
+
+                if (!transformation && init?.body) {
+                  const sanitized = sanitizeRequestBody(init.body as string)
+                  requestInit = { ...init, body: sanitized }
+                }
+
+                const headers = createNewclawHeaders(requestInit, currentKey, {
+                  promptCacheKey: transformation?.body.prompt_cache_key,
+                })
+
+                const targetUrl = rewriteUrl(originalUrl, CODEX_BASE_URL)
+                const response = await fetch(targetUrl, {
+                  ...requestInit,
+                  headers,
+                })
+
+                await saveResponseIfEnabled(response.clone(), "codex", { url: targetUrl, model: modelId })
+
+                if (!response.ok) {
+                  if (!isLastKey && isFailoverStatus(response.status)) continue
+                  return await handleErrorResponse(response)
+                }
+
+                return await handleSuccessResponse(response, isStreaming)
+              }
+
+              if (isClaudeRequest) {
+                const targetUrl = rewriteUrl(originalUrl, NEWCLAW_ANTHROPIC_BASE_URL)
+                
+                let transformedInit = transformClaudeRequest(init)
+                const finalInit = transformedInit ?? init
+
+                const headers = new Headers(finalInit?.headers ?? {})
+                headers.set("x-api-key", currentKey)
+                headers.set("anthropic-version", "2023-06-01")
+                if (!headers.has(HEADER_NAMES.CONTENT_TYPE)) {
+                  headers.set(HEADER_NAMES.CONTENT_TYPE, "application/json")
+                }
+
+                const response = await fetch(targetUrl, {
+                  ...finalInit,
+                  headers,
+                })
+
+                if (!response.ok) {
+                  if (!isLastKey && isFailoverStatus(response.status)) continue
+                  const savedResponse = await saveResponseIfEnabled(response, "claude", { url: targetUrl, model: modelId })
+                  return transformClaudeResponse(savedResponse)
+                }
+
+                const savedResponse = await saveResponseIfEnabled(response, "claude", { url: targetUrl, model: modelId })
+                return transformClaudeResponse(savedResponse)
+              }
+
+              // Fallback path
+              const headers = createNewclawHeaders(init, currentKey)
+              const response = await fetch(originalUrl, { ...init, headers })
+
+              if (!response.ok && !isLastKey && isFailoverStatus(response.status)) continue
+
+              return response
+            } catch (err) {
+              if (isLastKey) throw err
+              // Network error on non-last key: try next
             }
-
-            const headers = createNewclawHeaders(requestInit, resolvedApiKey, {
-              promptCacheKey: transformation?.body.prompt_cache_key,
-            })
-
-            const targetUrl = rewriteUrl(originalUrl, CODEX_BASE_URL)
-            const response = await fetch(targetUrl, {
-              ...requestInit,
-              headers,
-            })
-
-            await saveResponseIfEnabled(response.clone(), "codex", { url: targetUrl, model: modelId })
-
-            if (!response.ok) {
-              return await handleErrorResponse(response)
-            }
-
-            return await handleSuccessResponse(response, isStreaming)
           }
 
-
-          if (isClaudeRequest) {
-            const targetUrl = rewriteUrl(originalUrl, NEWCLAW_ANTHROPIC_BASE_URL)
-            
-            let transformedInit = transformClaudeRequest(init)
-            const finalInit = transformedInit ?? init
-
-            const headers = new Headers(finalInit?.headers ?? {})
-            headers.set("x-api-key", resolvedApiKey)
-            headers.set("anthropic-version", "2023-06-01")
-            if (!headers.has(HEADER_NAMES.CONTENT_TYPE)) {
-              headers.set(HEADER_NAMES.CONTENT_TYPE, "application/json")
-            }
-
-            const response = await fetch(targetUrl, {
-              ...finalInit,
-              headers,
-            })
-            const savedResponse = await saveResponseIfEnabled(response, "claude", { url: targetUrl, model: modelId })
-            return transformClaudeResponse(savedResponse)
-          }
-
-          // Fallback: pass through with auth headers
-          const headers = createNewclawHeaders(init, resolvedApiKey)
+          // Should not reach here, but safety fallback
+          const headers = createNewclawHeaders(init, resolveApiKeyForFamily(family, apiKey))
           return await fetch(originalUrl, { ...init, headers })
         },
       }
@@ -369,15 +398,33 @@ export const NewclawAuthPlugin: Plugin = async (ctx: PluginInput) => {
         prompts: [
           {
             type: "text",
-            key: "apiKey",
-            message: "NewClaw API key",
-            placeholder: "sk-...",
+            key: "username",
+            message: "NewClaw 账号（用户名或邮箱）",
+            placeholder: "your_username",
+          },
+          {
+            type: "text",
+            key: "password",
+            message: "NewClaw 密码",
+            placeholder: "your_password",
           },
         ],
         authorize: async (inputs?: Record<string, string>) => {
-          const key = inputs?.apiKey?.trim()
-          if (!key) return { type: "failed" as const }
-          return { type: "success" as const, key }
+          const username = inputs?.username?.trim()
+          const password = inputs?.password?.trim()
+          if (!username || !password) return { type: "failed" as const }
+
+          const creds = { username, password }
+          const tokenKeys = await discoverAllTokenKeys(creds)
+          if (!tokenKeys || tokenKeys.length === 0) {
+            return { type: "failed" as const }
+          }
+
+          await saveCredentials(creds)
+
+          // Use the first discovered key as the primary auth key for OpenCode
+          const primaryKey = tokenKeys[0].key
+          return { type: "success" as const, key: primaryKey }
         },
       },
     ],

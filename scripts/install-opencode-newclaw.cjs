@@ -269,6 +269,20 @@ async function syncModelsFromApi() {
     }
 
     if (!apiKey) {
+      // Try keys[] from opencode.json config
+      var activeConfigPath1 = existsSync(configJsoncPath) ? configJsoncPath : configPath;
+      var configForKeys = await readJson(activeConfigPath1);
+      if (configForKeys && configForKeys.provider && configForKeys.provider[PROVIDER_ID]) {
+        var provKeys = configForKeys.provider[PROVIDER_ID].keys;
+        if (Array.isArray(provKeys)) {
+          for (var j = 0; j < provKeys.length; j++) {
+            if (provKeys[j] && provKeys[j].key) { apiKey = provKeys[j].key.trim(); break; }
+          }
+        }
+      }
+    }
+
+    if (!apiKey) {
       console.log("[" + PACKAGE_NAME + "] Model sync skipped: no API key found (run 'opencode auth login' first)");
       return;
     }
@@ -302,11 +316,10 @@ async function syncModelsFromApi() {
       return;
     }
 
-    console.log("[" + PACKAGE_NAME + "] API returned " + data.data.length + " models, filtering coding models...");
+    console.log("[" + PACKAGE_NAME + "] API returned " + data.data.length + " models, syncing to config...");
 
     var newModels = {};
     data.data.forEach(function (m) {
-      if (!isCodingModel(m.id)) return;
       newModels[m.id] = {
         name: modelIdToDisplayName(m.id),
         limit: detectLimits(m.id),
@@ -333,6 +346,62 @@ async function syncModelsFromApi() {
     console.warn("[" + PACKAGE_NAME + "] Model sync failed (non-fatal): " + (e instanceof Error ? e.message : e));
   }
 }
+var credentialsPath = path.resolve(__dirname, "..", ".newclaw-credentials");
+
+function askQuestion(rl, question) {
+  return new Promise(function (resolve) {
+    rl.question(question, function (answer) {
+      resolve(answer.trim());
+    });
+  });
+}
+
+async function promptCredentials() {
+  // Check if credentials already exist
+  try {
+    var existing = JSON.parse(await readFile(credentialsPath, "utf-8"));
+    if (existing && existing.username && existing.password) {
+      console.log("[" + PACKAGE_NAME + "] Found existing credentials for: " + existing.username);
+      return;
+    }
+  } catch { /* no existing credentials */ }
+
+  // Check if running in non-interactive mode (CI/CD)
+  if (!process.stdin.isTTY) {
+    console.log("[" + PACKAGE_NAME + "] Non-interactive mode — skip credential setup (run 'opencode auth login' later)");
+    return;
+  }
+
+  var readline = require("node:readline");
+  var rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+
+  try {
+    console.log("");
+    console.log("[" + PACKAGE_NAME + "] 🔐 NewClaw 平台账号配置");
+    console.log("[" + PACKAGE_NAME + "] 请输入你在 newclaw.ai 注册的账号和密码");
+    console.log("[" + PACKAGE_NAME + "] (跳过此步也可以，之后运行 opencode auth login 配置)");
+    console.log("");
+
+    var username = await askQuestion(rl, "NewClaw 用户名/邮箱 (回车跳过): ");
+    if (!username) {
+      console.log("[" + PACKAGE_NAME + "] 已跳过账号配置");
+      return;
+    }
+
+    var password = await askQuestion(rl, "NewClaw 密码: ");
+    if (!password) {
+      console.log("[" + PACKAGE_NAME + "] 已跳过账号配置");
+      return;
+    }
+
+    await mkdir(path.dirname(credentialsPath), { recursive: true });
+    await writeFile(credentialsPath, JSON.stringify({ username: username, password: password }, null, 2) + "\n", "utf-8");
+    console.log("[" + PACKAGE_NAME + "] ✅ 账号已保存至 " + credentialsPath);
+  } finally {
+    rl.close();
+  }
+}
+
 async function main() {
   var activeConfigPath = existsSync(configJsoncPath) ? configJsoncPath : configPath;
   var config = (await readJson(activeConfigPath)) || {};
@@ -363,6 +432,8 @@ async function main() {
   if (omoInstalled) {
     await writeOmoConfig();
   }
+
+  await promptCredentials();
 }
 
 main().catch(function (error) {
