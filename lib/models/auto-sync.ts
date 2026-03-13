@@ -1,45 +1,26 @@
 /**
  * @file auto-sync.ts
- * @input  NewClaw API /v1/models response
- * @output Updated opencode.json with latest model list
- * @pos    Plan B - auto-sync models from API on every startup
- *
- * Called during plugin init to fetch the latest models from NewClaw API
- * and update the local opencode.json configuration.
- * Fetches fresh data on every startup — no caching.
+ * @input  NewClaw API /v1/models + /api/pricing responses, multi-key config
+ * @output Updated opencode.json with enriched model list (group + ratio in display name)
+ * @pos    Core - multi-key model discovery with pricing enrichment on every startup
  */
 
 import { readFile, writeFile, mkdir } from "node:fs/promises"
 import path from "node:path"
 import os from "node:os"
+import { keyRegistry, type KeyProfile } from "./key-registry"
+import {
+  fetchPricing,
+  detectKeyGroup,
+  buildDisplayName,
+  type PricingData,
+  type PricingModelInfo,
+} from "./pricing"
+import { readCredentials, discoverAllTokenKeys } from "../auth/system-auth"
 
-const API_TIMEOUT_MS = 10_000 // 10 seconds
+const API_TIMEOUT_MS = 10_000
 const PACKAGE_NAME = "opencode-newclaw-auth"
 const PROVIDER_ID = "newclaw"
-
-// Model family prefixes we care about for coding
-const CODING_MODEL_PREFIXES = [
-  "claude-",
-  "gpt-",
-  "o1-", "o3-", "o4-",
-  "deepseek-",
-  "grok-",
-  "codex-",
-  "gemini-",
-]
-
-// Models to skip even if they match prefixes (too old, irrelevant, etc.)
-const SKIP_PATTERNS = [
-  /^gpt-3/,
-  /^gpt-4(?!o)/i, // skip gpt-4 but not gpt-4o
-  /embedding/i,
-  /whisper/i,
-  /tts/i,
-  /dall-e/i,
-  /moderation/i,
-  /realtime/i,
-  /audio/i,
-]
 
 interface ApiModel {
   id: string
@@ -52,21 +33,18 @@ interface ApiModelsResponse {
   data: ApiModel[]
 }
 
-
 interface ModelConfig {
   name: string
-  limit?: {
-    context: number
-    output: number
-  }
-  modalities?: {
-    input: string[]
-    output: string[]
-  }
+  limit?: { context: number; output: number }
+  modalities?: { input: string[]; output: string[] }
+}
+
+interface KeyEntry {
+  key: string
+  label?: string
 }
 
 const homeDir = process.env.OPENCODE_TEST_HOME || os.homedir()
-
 
 function getConfigPaths(): { json: string; jsonc: string; dir: string } {
   const configRoot = process.env.XDG_CONFIG_HOME || path.join(homeDir, ".config")
@@ -76,6 +54,11 @@ function getConfigPaths(): { json: string; jsonc: string; dir: string } {
     jsonc: path.join(dir, "opencode.jsonc"),
     dir,
   }
+}
+
+function getKeyRegistryCachePath(): string {
+  const configRoot = process.env.XDG_CONFIG_HOME || path.join(homeDir, ".config")
+  return path.join(configRoot, "opencode", "newclaw-key-registry.json")
 }
 
 async function readJsonSafe(filePath: string): Promise<Record<string, any> | undefined> {
@@ -101,28 +84,14 @@ async function fileExists(filePath: string): Promise<boolean> {
   }
 }
 
-
-function isCodingModel(modelId: string): boolean {
-  const lower = modelId.toLowerCase()
-  // Must match at least one prefix
-  const matchesPrefix = CODING_MODEL_PREFIXES.some((prefix) => lower.startsWith(prefix))
-  if (!matchesPrefix) return false
-  // Must not match any skip pattern
-  const shouldSkip = SKIP_PATTERNS.some((pattern) => pattern.test(lower))
-  return !shouldSkip
-}
-
 function modelIdToDisplayName(id: string): string {
   return id
     .split("-")
     .map((part) => {
-      // Handle version numbers like "4.5", "5.2"
       if (/^\d/.test(part)) return part
-      // Capitalize first letter
       return part.charAt(0).toUpperCase() + part.slice(1)
     })
     .join(" ")
-    // Fix common patterns
     .replace(/^Gpt /, "GPT-")
     .replace(/^O(\d)/, "O$1")
     .replace(/^Claude /, "Claude ")
@@ -134,102 +103,30 @@ function modelIdToDisplayName(id: string): string {
 
 function detectModalities(modelId: string): { input: string[]; output: string[] } {
   const lower = modelId.toLowerCase()
-  // DeepSeek models are text-only
-  if (lower.startsWith("deepseek-")) {
-    return { input: ["text"], output: ["text"] }
-  }
-  // Most other modern models support images
+  if (lower.startsWith("deepseek-")) return { input: ["text"], output: ["text"] }
   return { input: ["text", "image"], output: ["text"] }
 }
 
 function detectLimits(modelId: string): { context: number; output: number } {
   const lower = modelId.toLowerCase()
-  if (lower.includes("codex") || lower.startsWith("gpt-5")) {
-    return { context: 400000, output: 128000 }
-  }
+  if (lower.includes("codex") || lower.startsWith("gpt-5")) return { context: 400000, output: 128000 }
   if (lower.startsWith("claude-")) {
     if (lower.includes("haiku")) return { context: 200000, output: 8192 }
     return { context: 200000, output: 64000 }
   }
-  if (lower.startsWith("deepseek-")) {
-    return { context: 128000, output: 64000 }
-  }
-  if (lower.startsWith("o1-") || lower.startsWith("o3-") || lower.startsWith("o4-")) {
-    return { context: 200000, output: 100000 }
-  }
-  if (lower.startsWith("grok-")) {
-    return { context: 200000, output: 100000 }
-  }
-  if (lower.startsWith("gemini-")) {
-    return { context: 1000000, output: 65536 }
-  }
-  // Default
+  if (lower.startsWith("deepseek-")) return { context: 128000, output: 64000 }
+  if (lower.startsWith("o1-") || lower.startsWith("o3-") || lower.startsWith("o4-")) return { context: 200000, output: 100000 }
+  if (lower.startsWith("grok-")) return { context: 200000, output: 100000 }
+  if (lower.startsWith("gemini-")) return { context: 1000000, output: 65536 }
   return { context: 128000, output: 32000 }
 }
 
-function apiModelsToConfig(apiModels: ApiModel[]): Record<string, ModelConfig> {
-  const result: Record<string, ModelConfig> = {}
-  for (const model of apiModels) {
-    if (!isCodingModel(model.id)) continue
-    result[model.id] = {
-      name: modelIdToDisplayName(model.id),
-      limit: detectLimits(model.id),
-      modalities: detectModalities(model.id),
-    }
-  }
-  return result
-}
+// ===== Key Gathering =====
 
-async function fetchModelsFromApi(apiKey?: string): Promise<ApiModel[] | undefined> {
-  try {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    }
-    if (apiKey) {
-      headers["Authorization"] = `Bearer ${apiKey}`
-    }
-
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS)
-
-    try {
-      const response = await fetch("https://newclaw.ai/v1/models", {
-        method: "GET",
-        headers,
-        signal: controller.signal,
-      })
-      clearTimeout(timeout)
-
-      if (!response.ok) {
-        console.warn(`[${PACKAGE_NAME}] Model sync: API returned HTTP ${response.status}`)
-        return undefined
-      }
-
-      const data = (await response.json()) as ApiModelsResponse
-      if (!data || !Array.isArray(data.data)) {
-        return undefined
-      }
-
-      return data.data
-    } finally {
-      clearTimeout(timeout)
-    }
-  } catch {
-    return undefined
-  }
-}
-
-/**
- * Read the API key from auth.json for model sync.
- * OpenCode stores auth in ~/.local/share/opencode/auth.json (XDG_DATA_HOME).
- * Falls back to env var NEWCLAW_API_KEY.
- */
-async function getApiKey(): Promise<string | undefined> {
-  // Try env var first
+async function getAuthKey(): Promise<string | undefined> {
   const envKey = process.env.NEWCLAW_API_KEY
   if (envKey?.trim()) return envKey.trim()
 
-  // Try auth.json (OpenCode stores it in XDG_DATA_HOME, not XDG_CONFIG_HOME)
   const dataDirs = [
     process.env.XDG_DATA_HOME || path.join(homeDir, ".local", "share"),
     process.env.XDG_CONFIG_HOME || path.join(homeDir, ".config"),
@@ -240,75 +137,213 @@ async function getApiKey(): Promise<string | undefined> {
       const authPath = path.join(dataDir, "opencode", "auth.json")
       const raw = await readFile(authPath, "utf-8")
       const auth = JSON.parse(raw)
-      // auth.json structure: { "newclaw": { "type": "api", "key": "sk-..." } }
       const newclawAuth = auth?.[PROVIDER_ID] ?? auth?.newclaw
       if (newclawAuth?.key?.trim()) return newclawAuth.key.trim()
     } catch {
-      // auth.json not found in this location, try next
+      // try next
     }
   }
-
   return undefined
 }
 
-/**
- * Main sync function. Called during plugin init.
- * Fetches latest models from NewClaw API and updates opencode.json.
- *
- * @returns true if models were updated, false otherwise
- */
-export async function syncModelsFromApi(): Promise<boolean> {
-  try {
-    // Get API key
-    const apiKey = await getApiKey()
-    if (!apiKey) {
-      console.log(`[${PACKAGE_NAME}] Model sync skipped: no API key found (run 'opencode auth login' first)`)
-      return false
-    }
+async function getConfigKeys(): Promise<KeyEntry[]> {
+  const paths = getConfigPaths()
+  const configPath = (await fileExists(paths.jsonc)) ? paths.jsonc : paths.json
+  const config = await readJsonSafe(configPath)
+  if (!config) return []
 
-    console.log(`[${PACKAGE_NAME}] Syncing models from NewClaw API...`)
+  const providerConfig = config?.provider?.[PROVIDER_ID]
+  if (!providerConfig || typeof providerConfig !== "object") return []
 
-    // Fetch from API (every startup, no cache)
-    const apiModels = await fetchModelsFromApi(apiKey)
-    if (!apiModels || apiModels.length === 0) {
-      console.warn(`[${PACKAGE_NAME}] Model sync: API returned no models (check network or API key)`)
-      return false
-    }
+  const keys = (providerConfig as Record<string, unknown>).keys
+  if (!Array.isArray(keys)) return []
 
-    console.log(`[${PACKAGE_NAME}] API returned ${apiModels.length} models, filtering coding models...`)
-
-    // Convert and update config
-    const modelConfigs = apiModelsToConfig(apiModels)
-    if (Object.keys(modelConfigs).length === 0) {
-      console.warn(`[${PACKAGE_NAME}] Model sync: no coding models found after filtering`)
-      return false
-    }
-
-    return await updateConfigModels(modelConfigs)
-  } catch (err) {
-    console.warn(
-      `[${PACKAGE_NAME}] Model auto-sync failed: ${err instanceof Error ? err.message : err}`,
+  return keys
+    .filter((k: unknown): k is { key: string } =>
+      typeof k === "object" && k !== null && "key" in k && typeof (k as Record<string, unknown>).key === "string",
     )
-    return false
-  }
+    .map((k) => ({ key: k.key.trim(), label: (k as Record<string, unknown>).label as string | undefined }))
+    .filter((k) => k.key.length > 0)
 }
 
 /**
- * Update opencode.json with the given model configs.
- * Merges with existing models — API-discovered models are added,
- * but user-customized models are preserved.
+ * Gather all unique keys from: system login (all tokens) → auth.json → config keys[].
+ * System login via .newclaw-credentials is the primary source.
  */
+async function gatherAllKeys(): Promise<{ entries: KeyEntry[]; authKey: string | undefined }> {
+  const seen = new Set<string>()
+  const entries: KeyEntry[] = []
+
+  // Source 1: System login — discover all tokens via platform account
+  const creds = await readCredentials()
+  if (creds) {
+    const tokenKeys = await discoverAllTokenKeys(creds)
+    if (tokenKeys && tokenKeys.length > 0) {
+      for (const tk of tokenKeys) {
+        if (!seen.has(tk.key)) {
+          seen.add(tk.key)
+          entries.push({ key: tk.key, label: tk.name || tk.group })
+        }
+      }
+    }
+  }
+
+  // Source 2: auth.json (opencode auth login)
+  const authKey = await getAuthKey()
+  if (authKey && !seen.has(authKey)) {
+    seen.add(authKey)
+    entries.push({ key: authKey })
+  }
+
+  // Source 3: opencode.json keys[] array
+  const configKeys = await getConfigKeys()
+  for (const ck of configKeys) {
+    if (!seen.has(ck.key)) {
+      seen.add(ck.key)
+      entries.push(ck)
+    }
+  }
+
+  return { entries, authKey }
+}
+
+// ===== Per-Key Model Discovery =====
+
+async function fetchModelsForKey(apiKey: string): Promise<string[] | undefined> {
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS)
+
+    try {
+      const response = await fetch("https://newclaw.ai/v1/models", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        signal: controller.signal,
+      })
+      clearTimeout(timeout)
+
+      if (!response.ok) return undefined
+
+      const data = (await response.json()) as ApiModelsResponse
+      if (!data || !Array.isArray(data.data)) return undefined
+
+      return data.data.map((m) => m.id)
+    } finally {
+      clearTimeout(timeout)
+    }
+  } catch {
+    return undefined
+  }
+}
+
+async function discoverKeyProfile(
+  entry: KeyEntry,
+  source: "auth" | "config",
+  pricingData: PricingData | undefined,
+): Promise<KeyProfile | undefined> {
+  const models = await fetchModelsForKey(entry.key)
+  if (!models || models.length === 0) return undefined
+
+  let groupName = "unknown"
+  let groupDisplayName = "未知分组"
+  let groupRatio = 1
+
+  if (pricingData) {
+    const detected = detectKeyGroup(models, pricingData)
+    if (detected) {
+      groupName = detected.groupName
+      groupDisplayName = detected.displayName
+      groupRatio = detected.groupRatio
+    }
+  }
+
+  return { key: entry.key, groupName, groupDisplayName, groupRatio, models, source }
+}
+
+// ===== Key Registry Cache =====
+
+interface CachedRegistryData {
+  profiles: Array<{
+    keyPrefix: string
+    groupName: string
+    groupDisplayName: string
+    groupRatio: number
+    models: string[]
+    source: "auth" | "config"
+  }>
+  timestamp: number
+}
+
+function maskKey(key: string): string {
+  if (key.length <= 8) return key
+  return key.slice(0, 4) + "****" + key.slice(-4)
+}
+
+async function saveKeyRegistryCache(profiles: KeyProfile[]): Promise<void> {
+  try {
+    const cachePath = getKeyRegistryCachePath()
+    const data: CachedRegistryData = {
+      profiles: profiles.map((p) => ({
+        keyPrefix: maskKey(p.key),
+        groupName: p.groupName,
+        groupDisplayName: p.groupDisplayName,
+        groupRatio: p.groupRatio,
+        models: p.models,
+        source: p.source,
+      })),
+      timestamp: Date.now(),
+    }
+    await mkdir(path.dirname(cachePath), { recursive: true })
+    await writeFile(cachePath, JSON.stringify(data, null, 2) + "\n", "utf-8")
+  } catch {
+    // non-fatal
+  }
+}
+
+// ===== Model Config Building =====
+
+function getModelDisplayName(modelId: string, pricingData: PricingData | undefined): string {
+  const pricingName = pricingData?.model_info?.[modelId]?.name
+  if (pricingName && pricingName !== modelId) {
+    return pricingName
+  }
+  return modelIdToDisplayName(modelId)
+}
+
+function buildEnrichedModelConfigs(
+  pricingData: PricingData | undefined,
+): Record<string, ModelConfig> {
+  const allModels = keyRegistry.getAllModels()
+  const result: Record<string, ModelConfig> = {}
+
+  for (const [modelId, bestProfile] of allModels) {
+    const baseName = getModelDisplayName(modelId, pricingData)
+    const displayName = buildDisplayName(baseName, bestProfile.groupDisplayName, bestProfile.groupRatio)
+
+    result[modelId] = {
+      name: displayName,
+      limit: detectLimits(modelId),
+      modalities: detectModalities(modelId),
+    }
+  }
+
+  return result
+}
+
+// ===== Config Write =====
+
 async function updateConfigModels(newModels: Record<string, ModelConfig>): Promise<boolean> {
   const paths = getConfigPaths()
   const jsoncExists = await fileExists(paths.jsonc)
   const jsonExists = await fileExists(paths.json)
-
   const configPath = jsoncExists ? paths.jsonc : jsonExists ? paths.json : paths.json
   const config = (await readJsonSafe(configPath)) ?? {}
 
   if (!config || typeof config !== "object") return false
 
-  // Navigate to provider.newclaw.models
   const providerMap = config.provider && typeof config.provider === "object" ? config.provider : {}
   const provider =
     providerMap[PROVIDER_ID] && typeof providerMap[PROVIDER_ID] === "object"
@@ -317,29 +352,31 @@ async function updateConfigModels(newModels: Record<string, ModelConfig>): Promi
   const existingModels =
     provider.models && typeof provider.models === "object" ? provider.models : {}
 
-  // Merge: new models from API + existing models (existing take priority for customized fields)
   const mergedModels: Record<string, ModelConfig> = {}
 
-  // Add all API-discovered models
-  for (const [id, config] of Object.entries(newModels)) {
-    mergedModels[id] = config
+  for (const [id, cfg] of Object.entries(newModels)) {
+    mergedModels[id] = cfg
   }
 
-  // Overlay any existing user customizations
+  // Preserve user customizations on top of API-discovered models
   for (const [id, existingConfig] of Object.entries(existingModels)) {
     if (typeof existingConfig === "object" && existingConfig !== null) {
-      mergedModels[id] = {
-        ...mergedModels[id],
-        ...(existingConfig as ModelConfig),
+      // Only preserve user overrides for fields like limit/modalities, not the auto-generated name
+      const existing = existingConfig as Record<string, unknown>
+      if (mergedModels[id]) {
+        // Keep API name (with group info), but allow user to override limit/modalities
+        if (existing.limit) mergedModels[id].limit = existing.limit as ModelConfig["limit"]
+        if (existing.modalities) mergedModels[id].modalities = existing.modalities as ModelConfig["modalities"]
+      } else {
+        // Model only exists in user config (not from API) — keep it
+        mergedModels[id] = existingConfig as ModelConfig
       }
     }
   }
 
-  // Check if anything actually changed
   const existingKeys = Object.keys(existingModels).sort().join(",")
   const mergedKeys = Object.keys(mergedModels).sort().join(",")
   if (existingKeys === mergedKeys) {
-    // Same set of models — check if any values differ
     let same = true
     for (const key of Object.keys(mergedModels)) {
       if (JSON.stringify(existingModels[key]) !== JSON.stringify(mergedModels[key])) {
@@ -350,16 +387,71 @@ async function updateConfigModels(newModels: Record<string, ModelConfig>): Promi
     if (same) return false
   }
 
-  // Apply changes
   provider.models = mergedModels
   providerMap[PROVIDER_ID] = provider
   config.provider = providerMap
 
-  // Write back
   await mkdir(paths.dir, { recursive: true })
   await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf-8")
 
   const modelCount = Object.keys(mergedModels).length
-  console.log(`[${PACKAGE_NAME}] Synced ${modelCount} models from NewClaw API`)
+  console.log(`[${PACKAGE_NAME}] Synced ${modelCount} models to config`)
   return true
+}
+
+// ===== Main Entry =====
+
+export async function syncModelsFromApi(): Promise<boolean> {
+  try {
+    const { entries, authKey } = await gatherAllKeys()
+    if (entries.length === 0) {
+      console.log(`[${PACKAGE_NAME}] Model sync skipped: no API key found (run 'opencode auth login' first)`)
+      return false
+    }
+
+    console.log(`[${PACKAGE_NAME}] Syncing models from NewClaw API (${entries.length} key(s))...`)
+
+    const pricing = await fetchPricing()
+
+    const discoveryResults = await Promise.allSettled(
+      entries.map((entry, i) =>
+        discoverKeyProfile(entry, i === 0 && authKey ? "auth" : "config", pricing),
+      ),
+    )
+
+    // Register all successful profiles
+    keyRegistry.clear()
+    for (const result of discoveryResults) {
+      if (result.status === "fulfilled" && result.value) {
+        keyRegistry.register(result.value)
+        const p = result.value
+        console.log(
+          `[${PACKAGE_NAME}] Key ${maskKey(p.key)}: ${p.models.length} models, group="${p.groupName}" (${p.groupDisplayName}, ${p.groupRatio}x)`,
+        )
+      }
+    }
+
+    const profiles = keyRegistry.getProfiles()
+    if (profiles.length === 0) {
+      console.warn(`[${PACKAGE_NAME}] Model sync: no valid keys returned models`)
+      return false
+    }
+
+    // Save key registry cache
+    await saveKeyRegistryCache(profiles)
+
+    // Build enriched model configs with group info in display names
+    const enrichedModels = buildEnrichedModelConfigs(pricing)
+    if (Object.keys(enrichedModels).length === 0) {
+      console.warn(`[${PACKAGE_NAME}] Model sync: no models found`)
+      return false
+    }
+
+    return await updateConfigModels(enrichedModels)
+  } catch (err) {
+    console.warn(
+      `[${PACKAGE_NAME}] Model auto-sync failed: ${err instanceof Error ? err.message : err}`,
+    )
+    return false
+  }
 }
