@@ -16,3 +16,17 @@ export {
   resolveApiKeyForFamily,
   detectFamily,
 } from "./registry"
+
+export { keyRegistry, KeyRegistry, type KeyProfile } from "./key-registry"
+
+export {
+  fetchPricing,
+  detectKeyGroup,
+  buildDisplayName,
+  getGroupDisplayName,
+  type PricingData,
+  type PricingGroupInfo,
+  type PricingModelInfo,
+  type PricingModelPrice,
+  type PricingResponse,
+} from "./pricing"
