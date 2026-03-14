@@ -300,6 +300,8 @@ export const NewclawAuthPlugin: Plugin = async (ctx: PluginInput) => {
           const originalUrl = extractRequestUrl(input)
           const { model, isStreaming } = parseRequestBody(init)
           
+          console.log(`[newclaw-auth] fetch interceptor called: model=${model}, isStreaming=${isStreaming}, url=${originalUrl}`)
+          
           // Priority: env var override > keyRegistry match > auth.json unified key
           const modelId = model ? stripProviderPrefix(model) : ""
           const family = detectFamily(modelId)
@@ -374,20 +376,26 @@ export const NewclawAuthPlugin: Plugin = async (ctx: PluginInput) => {
               }
 
               // Fallback path
+              console.log(`[newclaw-auth] fallback path for model=${modelId}, family=${family}`)
               let fallbackInit = init
               if (init?.body && typeof init.body === "string") {
                 try {
                   const fallbackBody = JSON.parse(init.body as string)
+                  console.log(`[newclaw-auth] before stream injection: stream=${fallbackBody.stream}`)
                   fallbackBody.stream = true
+                  console.log(`[newclaw-auth] after stream injection: stream=${fallbackBody.stream}`)
                   fallbackInit = { ...init, body: JSON.stringify(fallbackBody) }
                 } catch {
                   // proceed with original
+                  console.log(`[newclaw-auth] failed to parse body, proceeding with original`)
                 }
               }
 
               const headers = createNewclawHeaders(fallbackInit, currentKey)
               const targetUrl = rewriteUrl(originalUrl, NEWCLAW_BASE_URL)
+              console.log(`[newclaw-auth] fallback: originalUrl=${originalUrl}, targetUrl=${targetUrl}`)
               const response = await fetch(targetUrl, { ...fallbackInit, headers })
+              console.log(`[newclaw-auth] fallback response: status=${response.status}, contentType=${response.headers.get("content-type")}`)
 
               if (!response.ok) {
                 if (!isLastKey && isFailoverStatus(response.status)) continue
