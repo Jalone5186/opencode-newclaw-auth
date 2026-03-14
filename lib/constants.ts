@@ -9,12 +9,23 @@ export const PLUGIN_NAME = "opencode-newclaw-auth"
 export const PROVIDER_ID = "newclaw"
 export const AUTH_METHOD_LABEL = "NewClaw API Key"
 
-// NewClaw API base URLs - all traffic routes through https://newclaw.ai
-export const NEWCLAW_BASE_URL = "https://newclaw.ai/v1"
-export const NEWCLAW_ANTHROPIC_BASE_URL = "https://newclaw.ai/v1"
+// NewClaw API base URLs - 3-layer failover architecture
+// URL1: Primary (base domain)
+// URL2: Secondary (explicit version)
+// URL3: Tertiary (explicit endpoint path)
+export const NEWCLAW_BASE_URLS = [
+  "https://newclaw.ai",
+  "https://newclaw.ai/v1",
+  "https://newclaw.ai/v1/chat/completions",
+] as const
 
-// Codex-specific endpoint (OpenAI Responses API compatible)
-export const CODEX_BASE_URL = "https://newclaw.ai/v1"
+// Backward compatibility - keep old constants pointing to primary URL
+export const NEWCLAW_BASE_URL = NEWCLAW_BASE_URLS[0]
+export const NEWCLAW_ANTHROPIC_BASE_URL = NEWCLAW_BASE_URLS[0]
+export const CODEX_BASE_URL = NEWCLAW_BASE_URLS[0]
+
+// HTTP status codes that trigger URL failover
+export const FAILOVER_STATUS_CODES = new Set([401, 403, 429, 500, 502, 503, 504])
 
 export const USER_AGENT = "opencode-newclaw-auth/0.1.0"
 export const ORIGINATOR = "opencode_newclaw"
