@@ -8,6 +8,7 @@ var isGemini = (modelId) => modelId.startsWith("gemini-");
 var isResponses = (modelId) => modelId.startsWith("gpt-") || modelId.startsWith("codex");
 var normalizeModelId = (modelId) => String(modelId).trim();
 function createNewclaw(options = {}) {
+  console.log(`[newclaw-provider] createNewclaw called: apiKey=${options.apiKey ? options.apiKey.slice(0, 8) + "****" : "none"}, baseURL=${options.baseURL}, hasFetch=${!!options.fetch}`);
   const openai = createOpenAI({
     apiKey: options.apiKey,
     baseURL: options.baseURL,

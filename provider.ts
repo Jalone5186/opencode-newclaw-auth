@@ -42,6 +42,8 @@ const isResponses = (modelId: string) => modelId.startsWith("gpt-") || modelId.s
 const normalizeModelId = (modelId: string) => String(modelId).trim()
 
 export function createNewclaw(options: NewclawProviderSettings = {}): NewclawProvider {
+  console.log(`[newclaw-provider] createNewclaw called: apiKey=${options.apiKey ? options.apiKey.slice(0, 8) + "****" : "none"}, baseURL=${options.baseURL}, hasFetch=${!!options.fetch}`)
+
   const openai = createOpenAI({
     apiKey: options.apiKey,
     baseURL: options.baseURL,

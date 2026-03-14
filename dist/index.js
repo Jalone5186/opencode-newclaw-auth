@@ -1554,6 +1554,7 @@ var NewclawAuthPlugin = async (ctx) => {
         fetch: async (input, init) => {
           const originalUrl = extractRequestUrl(input);
           const { model, isStreaming } = parseRequestBody(init);
+          console.log(`[newclaw-auth] fetch interceptor called: model=${model}, isStreaming=${isStreaming}, url=${originalUrl}`);
           const modelId = model ? stripProviderPrefix(model) : "";
           const family = detectFamily(modelId);
           const candidateKeys = keyRegistry.selectKeysForModel(modelId, apiKey);
@@ -1610,23 +1611,32 @@ var NewclawAuthPlugin = async (ctx) => {
                 const savedResponse = await saveResponseIfEnabled(response2, "claude", { url: targetUrl2, model: modelId });
                 return transformClaudeResponse(savedResponse);
               }
+              console.log(`[newclaw-auth] fallback path for model=${modelId}, family=${family}`);
               let fallbackInit = init;
+              let fallbackIsStreaming = isStreaming;
               if (init?.body && typeof init.body === "string") {
                 try {
                   const fallbackBody = JSON.parse(init.body);
+                  console.log(`[newclaw-auth] before stream injection: stream=${fallbackBody.stream}`);
                   fallbackBody.stream = true;
+                  console.log(`[newclaw-auth] after stream injection: stream=${fallbackBody.stream}`);
                   fallbackInit = { ...init, body: JSON.stringify(fallbackBody) };
-                } catch {}
+                  fallbackIsStreaming = true;
+                } catch {
+                  console.log(`[newclaw-auth] failed to parse body, proceeding with original`);
+                }
               }
               const headers2 = createNewclawHeaders(fallbackInit, currentKey);
               const targetUrl = rewriteUrl(originalUrl, NEWCLAW_BASE_URL);
+              console.log(`[newclaw-auth] fallback: originalUrl=${originalUrl}, targetUrl=${targetUrl}, isStreaming=${fallbackIsStreaming}`);
               const response = await fetch(targetUrl, { ...fallbackInit, headers: headers2 });
+              console.log(`[newclaw-auth] fallback response: status=${response.status}, contentType=${response.headers.get("content-type")}`);
               if (!response.ok) {
                 if (!isLastKey && isFailoverStatus(response.status))
                   continue;
                 return await handleErrorResponse(response);
               }
-              return await handleSuccessResponse(response, true);
+              return await handleSuccessResponse(response, fallbackIsStreaming);
             } catch (err) {
               if (isLastKey)
                 throw err;
