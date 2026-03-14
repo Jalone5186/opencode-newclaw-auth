@@ -1617,13 +1617,12 @@ var NewclawAuthPlugin = async (ctx) => {
               if (init?.body && typeof init.body === "string") {
                 try {
                   const fallbackBody = JSON.parse(init.body);
-                  console.log(`[newclaw-auth] before stream injection: stream=${fallbackBody.stream}`);
-                  fallbackBody.stream = true;
-                  console.log(`[newclaw-auth] after stream injection: stream=${fallbackBody.stream}`);
-                  fallbackInit = { ...init, body: JSON.stringify(fallbackBody) };
+                  const transformedBody = await transformRequestBody(fallbackBody);
+                  fallbackInit = { ...init, body: JSON.stringify(transformedBody) };
                   fallbackIsStreaming = true;
-                } catch {
-                  console.log(`[newclaw-auth] failed to parse body, proceeding with original`);
+                  console.log(`[newclaw-auth] fallback: applied transformRequestBody, stream=${transformedBody.stream}`);
+                } catch (err) {
+                  console.log(`[newclaw-auth] fallback: transformRequestBody failed, proceeding with original: ${err instanceof Error ? err.message : String(err)}`);
                 }
               }
               const headers2 = createNewclawHeaders(fallbackInit, currentKey);

@@ -32,6 +32,7 @@ import {
   handleSuccessResponse,
 } from "./lib/request/fetch-helpers"
 import { transformClaudeRequest, transformClaudeResponse } from "./lib/request/claude-tools-transform"
+import { transformRequestBody } from "./lib/request/request-transformer"
 import { saveRawResponse, SAVE_RAW_RESPONSE_ENABLED } from "./lib/logger"
 import { detectFamily, resolveApiKeyForFamily, keyRegistry } from "./lib/models"
 import STANDARD_PROVIDER_CONFIG from "./lib/provider-config.json"
@@ -375,22 +376,21 @@ export const NewclawAuthPlugin: Plugin = async (ctx: PluginInput) => {
                 return transformClaudeResponse(savedResponse)
               }
 
-               // Fallback path
+               // Fallback path (DeepSeek/Grok/Gemini)
                console.log(`[newclaw-auth] fallback path for model=${modelId}, family=${family}`)
                let fallbackInit = init
                let fallbackIsStreaming = isStreaming
+               
+               // Apply full request transformation (like Codex path does)
                if (init?.body && typeof init.body === "string") {
                  try {
                    const fallbackBody = JSON.parse(init.body as string)
-                   console.log(`[newclaw-auth] before stream injection: stream=${fallbackBody.stream}`)
-                   fallbackBody.stream = true
-                   console.log(`[newclaw-auth] after stream injection: stream=${fallbackBody.stream}`)
-                   fallbackInit = { ...init, body: JSON.stringify(fallbackBody) }
-                   // Re-parse to update isStreaming flag
+                   const transformedBody = await transformRequestBody(fallbackBody)
+                   fallbackInit = { ...init, body: JSON.stringify(transformedBody) }
                    fallbackIsStreaming = true
-                 } catch {
-                   // proceed with original
-                   console.log(`[newclaw-auth] failed to parse body, proceeding with original`)
+                   console.log(`[newclaw-auth] fallback: applied transformRequestBody, stream=${transformedBody.stream}`)
+                 } catch (err) {
+                   console.log(`[newclaw-auth] fallback: transformRequestBody failed, proceeding with original: ${err instanceof Error ? err.message : String(err)}`)
                  }
                }
 
