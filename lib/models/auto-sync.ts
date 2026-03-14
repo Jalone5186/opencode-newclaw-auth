@@ -27,6 +27,7 @@ interface ApiModel {
   object?: string
   created?: number
   owned_by?: string
+  [key: string]: unknown  // capture all fields
 }
 
 interface ApiModelsResponse {
@@ -229,6 +230,12 @@ async function fetchModelsForKey(apiKey: string): Promise<string[] | undefined> 
 
       const data = (await response.json()) as ApiModelsResponse
       if (!data || !Array.isArray(data.data)) return undefined
+
+      // Log first model to see all available fields
+      if (data.data.length > 0) {
+        const firstModel = data.data[0]
+        console.log(`[newclaw-auth] First model from /v1/models:`, JSON.stringify(firstModel, null, 2))
+      }
 
       return data.data.map((m) => m.id)
     } finally {
