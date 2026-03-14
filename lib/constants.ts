@@ -42,6 +42,7 @@ export const HEADER_NAMES = {
   CONTENT_TYPE: "content-type",
   OPENAI_BETA: "openai-beta",
   CHATGPT_ACCOUNT_ID: "chatgpt-account-id",
+  X_FORWARDED_HOST: "x-forwarded-host",
 } as const
 
 /**
