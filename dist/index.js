@@ -1609,11 +1609,22 @@ var NewclawAuthPlugin = async (ctx) => {
                 const savedResponse = await saveResponseIfEnabled(response2, "claude", { url: targetUrl, model: modelId });
                 return transformClaudeResponse(savedResponse);
               }
-              const headers2 = createNewclawHeaders(init, currentKey);
-              const response = await fetch(originalUrl, { ...init, headers: headers2 });
-              if (!response.ok && !isLastKey && isFailoverStatus(response.status))
-                continue;
-              return response;
+              let fallbackInit = init;
+              if (init?.body && typeof init.body === "string") {
+                try {
+                  const fallbackBody = JSON.parse(init.body);
+                  fallbackBody.stream = true;
+                  fallbackInit = { ...init, body: JSON.stringify(fallbackBody) };
+                } catch {}
+              }
+              const headers2 = createNewclawHeaders(fallbackInit, currentKey);
+              const response = await fetch(originalUrl, { ...fallbackInit, headers: headers2 });
+              if (!response.ok) {
+                if (!isLastKey && isFailoverStatus(response.status))
+                  continue;
+                return await handleErrorResponse(response);
+              }
+              return await handleSuccessResponse(response, isStreaming);
             } catch (err) {
               if (isLastKey)
                 throw err;

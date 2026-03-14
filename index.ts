@@ -373,12 +373,26 @@ export const NewclawAuthPlugin: Plugin = async (ctx: PluginInput) => {
               }
 
               // Fallback path
-              const headers = createNewclawHeaders(init, currentKey)
-              const response = await fetch(originalUrl, { ...init, headers })
+              let fallbackInit = init
+              if (init?.body && typeof init.body === "string") {
+                try {
+                  const fallbackBody = JSON.parse(init.body as string)
+                  fallbackBody.stream = true
+                  fallbackInit = { ...init, body: JSON.stringify(fallbackBody) }
+                } catch {
+                  // proceed with original
+                }
+              }
 
-              if (!response.ok && !isLastKey && isFailoverStatus(response.status)) continue
+              const headers = createNewclawHeaders(fallbackInit, currentKey)
+              const response = await fetch(originalUrl, { ...fallbackInit, headers })
 
-              return response
+              if (!response.ok) {
+                if (!isLastKey && isFailoverStatus(response.status)) continue
+                return await handleErrorResponse(response)
+              }
+
+              return await handleSuccessResponse(response, isStreaming)
             } catch (err) {
               if (isLastKey) throw err
               // Network error on non-last key: try next
