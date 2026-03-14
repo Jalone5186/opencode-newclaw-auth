@@ -1530,7 +1530,12 @@ var fetchWithUrlFailover = async (originalUrl, init, baseUrls, headers) => {
     const isLastUrl = urlIndex === baseUrls.length - 1;
     try {
       let targetUrl = rewriteUrl(originalUrl, currentUrl);
-      if (targetUrl.includes("/responses")) {
+      if (currentUrl.includes("/chat/completions")) {
+        const base = new URL(currentUrl);
+        const original = new URL(originalUrl);
+        base.search = original.search;
+        targetUrl = base.toString();
+      } else if (targetUrl.includes("/responses")) {
         targetUrl = targetUrl.replace("/responses", "/chat/completions");
       }
       const response = await fetch(targetUrl, { ...init, headers });
