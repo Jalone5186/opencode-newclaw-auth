@@ -4,9 +4,9 @@
 
 **OpenCode 的 NewClaw 认证插件**
 
-一个 API Key → 多模型可用（Claude、GPT/Codex、Gemini、DeepSeek、Grok）
+一个平台账号 → 自动发现所有令牌和模型（Claude、GPT/Codex、Gemini、DeepSeek、Grok）
 
-通过平台账号自动发现所有令牌，智能路由 + 自动降级
+智能路由 + 自动降级，540+ 模型开箱即用
 
 [![license](https://img.shields.io/badge/license-MIT-black?style=flat-square)](#license)
 
@@ -136,6 +136,24 @@ npm install -g opencode-ai && opencode --version && cd ~/.cache/opencode && npm 
 ```powershell
 $ErrorActionPreference="Stop"; npm install -g opencode-ai; opencode --version; $d=if(Test-Path "$env:LOCALAPPDATA\opencode"){"$env:LOCALAPPDATA\opencode"}else{"$env:USERPROFILE\.cache\opencode"}; New-Item -ItemType Directory -Force -Path $d | Out-Null; cd $d; npm install https://github.com/Jalone5186/opencode-newclaw-auth/tarball/main; Write-Host "✅ 安装完成！"
 ```
+
+---
+
+## 更新插件
+
+如果你已经安装过插件，只需重新执行安装命令即可更新到最新版本。
+
+**macOS / Linux：**
+```bash
+cd ~/.cache/opencode && npm install https://github.com/Jalone5186/opencode-newclaw-auth/tarball/main
+```
+
+**Windows (PowerShell)：**
+```powershell
+$d = if(Test-Path "$env:LOCALAPPDATA\opencode"){"$env:LOCALAPPDATA\opencode"}else{"$env:USERPROFILE\.cache\opencode"}; cd $d; npm install https://github.com/Jalone5186/opencode-newclaw-auth/tarball/main
+```
+
+更新过程中会提示输入 NewClaw 平台账号密码。如果之前已经配置过，直接按回车跳过即可。
 
 ---
 

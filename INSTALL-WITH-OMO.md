@@ -33,6 +33,24 @@ npm install -g opencode-ai; cd "$env:LOCALAPPDATA\opencode"; if (-not (Test-Path
 
 ---
 
+## 更新插件
+
+已安装过的用户，执行以下命令即可更新到最新版本：
+
+**macOS / Linux：**
+```bash
+cd ~/.cache/opencode && npm install https://github.com/Jalone5186/opencode-newclaw-auth/tarball/main oh-my-opencode
+```
+
+**Windows (PowerShell)：**
+```powershell
+$d = if(Test-Path "$env:LOCALAPPDATA\opencode"){"$env:LOCALAPPDATA\opencode"}else{"$env:USERPROFILE\.cache\opencode"}; cd $d; npm install https://github.com/Jalone5186/opencode-newclaw-auth/tarball/main oh-my-opencode
+```
+
+更新过程中会提示输入 NewClaw 平台账号密码。如果之前已经配置过，直接按回车跳过即可。
+
+---
+
 ## 配置账号
 
 安装完成后（如果安装时跳过了账号配置），请配置你的 NewClaw 平台账号：
