@@ -8,6 +8,7 @@ import os4 from "os";
 var PLUGIN_NAME = "opencode-newclaw-auth";
 var PROVIDER_ID = "newclaw";
 var AUTH_METHOD_LABEL = "NewClaw API Key";
+var NEWCLAW_BASE_URL = "https://newclaw.ai/v1";
 var NEWCLAW_ANTHROPIC_BASE_URL = "https://newclaw.ai/v1";
 var CODEX_BASE_URL = "https://newclaw.ai/v1";
 var USER_AGENT = "opencode-newclaw-auth/0.1.0";
@@ -1573,12 +1574,12 @@ var NewclawAuthPlugin = async (ctx) => {
                 const headers3 = createNewclawHeaders(requestInit, currentKey, {
                   promptCacheKey: transformation?.body.prompt_cache_key
                 });
-                const targetUrl = rewriteUrl(originalUrl, CODEX_BASE_URL);
-                const response2 = await fetch(targetUrl, {
+                const targetUrl2 = rewriteUrl(originalUrl, CODEX_BASE_URL);
+                const response2 = await fetch(targetUrl2, {
                   ...requestInit,
                   headers: headers3
                 });
-                await saveResponseIfEnabled(response2.clone(), "codex", { url: targetUrl, model: modelId });
+                await saveResponseIfEnabled(response2.clone(), "codex", { url: targetUrl2, model: modelId });
                 if (!response2.ok) {
                   if (!isLastKey && isFailoverStatus(response2.status))
                     continue;
@@ -1587,7 +1588,7 @@ var NewclawAuthPlugin = async (ctx) => {
                 return await handleSuccessResponse(response2, isStreaming);
               }
               if (isClaudeRequest) {
-                const targetUrl = rewriteUrl(originalUrl, NEWCLAW_ANTHROPIC_BASE_URL);
+                const targetUrl2 = rewriteUrl(originalUrl, NEWCLAW_ANTHROPIC_BASE_URL);
                 let transformedInit = transformClaudeRequest(init);
                 const finalInit = transformedInit ?? init;
                 const headers3 = new Headers(finalInit?.headers ?? {});
@@ -1596,17 +1597,17 @@ var NewclawAuthPlugin = async (ctx) => {
                 if (!headers3.has(HEADER_NAMES.CONTENT_TYPE)) {
                   headers3.set(HEADER_NAMES.CONTENT_TYPE, "application/json");
                 }
-                const response2 = await fetch(targetUrl, {
+                const response2 = await fetch(targetUrl2, {
                   ...finalInit,
                   headers: headers3
                 });
                 if (!response2.ok) {
                   if (!isLastKey && isFailoverStatus(response2.status))
                     continue;
-                  const savedResponse2 = await saveResponseIfEnabled(response2, "claude", { url: targetUrl, model: modelId });
+                  const savedResponse2 = await saveResponseIfEnabled(response2, "claude", { url: targetUrl2, model: modelId });
                   return transformClaudeResponse(savedResponse2);
                 }
-                const savedResponse = await saveResponseIfEnabled(response2, "claude", { url: targetUrl, model: modelId });
+                const savedResponse = await saveResponseIfEnabled(response2, "claude", { url: targetUrl2, model: modelId });
                 return transformClaudeResponse(savedResponse);
               }
               let fallbackInit = init;
@@ -1618,7 +1619,8 @@ var NewclawAuthPlugin = async (ctx) => {
                 } catch {}
               }
               const headers2 = createNewclawHeaders(fallbackInit, currentKey);
-              const response = await fetch(originalUrl, { ...fallbackInit, headers: headers2 });
+              const targetUrl = rewriteUrl(originalUrl, NEWCLAW_BASE_URL);
+              const response = await fetch(targetUrl, { ...fallbackInit, headers: headers2 });
               if (!response.ok) {
                 if (!isLastKey && isFailoverStatus(response.status))
                   continue;

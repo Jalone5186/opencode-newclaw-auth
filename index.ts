@@ -19,6 +19,7 @@ import {
   AUTH_METHOD_LABEL,
   CODEX_BASE_URL,
   PROVIDER_ID,
+  NEWCLAW_BASE_URL,
   NEWCLAW_ANTHROPIC_BASE_URL,
   HEADER_NAMES,
 } from "./lib/constants"
@@ -385,7 +386,8 @@ export const NewclawAuthPlugin: Plugin = async (ctx: PluginInput) => {
               }
 
               const headers = createNewclawHeaders(fallbackInit, currentKey)
-              const response = await fetch(originalUrl, { ...fallbackInit, headers })
+              const targetUrl = rewriteUrl(originalUrl, NEWCLAW_BASE_URL)
+              const response = await fetch(targetUrl, { ...fallbackInit, headers })
 
               if (!response.ok) {
                 if (!isLastKey && isFailoverStatus(response.status)) continue
