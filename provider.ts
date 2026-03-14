@@ -38,6 +38,7 @@ export interface NewclawProvider {
 const isClaude = (modelId: string) => modelId.startsWith("claude-")
 const isGemini = (modelId: string) => modelId.startsWith("gemini-")
 const isResponses = (modelId: string) => modelId.startsWith("gpt-") || modelId.startsWith("codex")
+const isDeepSeekOrGrok = (modelId: string) => modelId.startsWith("deepseek-") || modelId.startsWith("grok-")
 
 const normalizeModelId = (modelId: string) => String(modelId).trim()
 
@@ -73,7 +74,8 @@ export function createNewclaw(options: NewclawProviderSettings = {}): NewclawPro
     const id = normalizeModelId(modelId)
     if (isClaude(id)) return anthropic.languageModel(id)
     if (isGemini(id)) return google.languageModel(id) as unknown as LanguageModelV2
-    if (isResponses(id) && typeof openai.responses === "function") return openai.responses(id)
+    // DeepSeek and Grok use responses() to declare streaming support
+    if ((isResponses(id) || isDeepSeekOrGrok(id)) && typeof openai.responses === "function") return openai.responses(id)
     return openaiLanguageModel(id)
   }
 
