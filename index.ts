@@ -262,7 +262,13 @@ const fetchWithUrlFailover = async (
     const isLastUrl = urlIndex === baseUrls.length - 1
 
     try {
-      const targetUrl = rewriteUrl(originalUrl, currentUrl)
+      let targetUrl = rewriteUrl(originalUrl, currentUrl)
+      
+      // For fallback path (DeepSeek/Grok/Gemini), convert /responses to /chat/completions
+      if (targetUrl.includes("/responses")) {
+        targetUrl = targetUrl.replace("/responses", "/chat/completions")
+      }
+      
       const response = await fetch(targetUrl, { ...init, headers })
 
       if (response.ok) {
