@@ -79,6 +79,11 @@ export function createNewclawHeaders(
   headers.set(HEADER_NAMES.ACCEPT, "text/event-stream")
   headers.set(HEADER_NAMES.X_FORWARDED_HOST, "localhost:5173")
 
+  logDebug("createNewclawHeaders", {
+    hasXForwardedHost: headers.has(HEADER_NAMES.X_FORWARDED_HOST),
+    xForwardedHostValue: headers.get(HEADER_NAMES.X_FORWARDED_HOST),
+  })
+
   if (!headers.has(HEADER_NAMES.CONTENT_TYPE)) {
     headers.set(HEADER_NAMES.CONTENT_TYPE, "application/json")
   }
