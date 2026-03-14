@@ -21,6 +21,8 @@ import {
   PROVIDER_ID,
   NEWCLAW_BASE_URL,
   NEWCLAW_ANTHROPIC_BASE_URL,
+  NEWCLAW_BASE_URLS,
+  FAILOVER_STATUS_CODES,
   HEADER_NAMES,
 } from "./lib/constants"
 import {
@@ -249,6 +251,42 @@ const rewriteUrl = (originalUrl: string, baseUrl: string) => {
   }
 }
 
+const fetchWithUrlFailover = async (
+  originalUrl: string,
+  init: RequestInit | undefined,
+  baseUrls: readonly string[],
+  headers: Headers,
+): Promise<Response> => {
+  for (let urlIndex = 0; urlIndex < baseUrls.length; urlIndex++) {
+    const currentUrl = baseUrls[urlIndex]
+    const isLastUrl = urlIndex === baseUrls.length - 1
+
+    try {
+      const targetUrl = rewriteUrl(originalUrl, currentUrl)
+      const response = await fetch(targetUrl, { ...init, headers })
+
+      if (response.ok) {
+        return response
+      }
+
+      if (!isLastUrl && FAILOVER_STATUS_CODES.has(response.status)) {
+        console.log(
+          `[newclaw-auth] url-failover: status=${response.status}, trying next URL (${urlIndex + 1}/${baseUrls.length})`
+        )
+        continue
+      }
+
+      return response
+    } catch (err) {
+      if (isLastUrl) throw err
+      console.log(
+        `[newclaw-auth] url-failover: network error, trying next URL (${urlIndex + 1}/${baseUrls.length}): ${err instanceof Error ? err.message : String(err)}`
+      )
+    }
+  }
+
+  throw new Error("All URL failover attempts exhausted")
+}
 
 const getOutputTokenLimit = (
   input: Parameters<NonNullable<Hooks["chat.params"]>>[0],
@@ -319,93 +357,82 @@ export const NewclawAuthPlugin: Plugin = async (ctx: PluginInput) => {
             const isLastKey = ki === candidateKeys.length - 1
 
             try {
-              if (isCodexRequest) {
-                const transformation = await transformRequestForCodex(init)
-                let requestInit = transformation?.updatedInit ?? init
+               if (isCodexRequest) {
+                 const transformation = await transformRequestForCodex(init)
+                 let requestInit = transformation?.updatedInit ?? init
 
-                if (!transformation && init?.body) {
-                  const sanitized = sanitizeRequestBody(init.body as string)
-                  requestInit = { ...init, body: sanitized }
+                 if (!transformation && init?.body) {
+                   const sanitized = sanitizeRequestBody(init.body as string)
+                   requestInit = { ...init, body: sanitized }
+                 }
+
+                 const headers = createNewclawHeaders(requestInit, currentKey, {
+                   promptCacheKey: transformation?.body.prompt_cache_key,
+                 })
+
+                 const response = await fetchWithUrlFailover(originalUrl, requestInit, NEWCLAW_BASE_URLS, headers)
+
+                 await saveResponseIfEnabled(response.clone(), "codex", { url: originalUrl, model: modelId })
+
+                 if (!response.ok) {
+                   if (!isLastKey && FAILOVER_STATUS_CODES.has(response.status)) continue
+                   return await handleErrorResponse(response)
+                 }
+
+                 return await handleSuccessResponse(response, isStreaming)
+               }
+
+               if (isClaudeRequest) {
+                 let transformedInit = transformClaudeRequest(init)
+                 const finalInit = transformedInit ?? init
+
+                 const headers = new Headers(finalInit?.headers ?? {})
+                 headers.set("x-api-key", currentKey)
+                 headers.set("anthropic-version", "2023-06-01")
+                 if (!headers.has(HEADER_NAMES.CONTENT_TYPE)) {
+                   headers.set(HEADER_NAMES.CONTENT_TYPE, "application/json")
+                 }
+
+                 const response = await fetchWithUrlFailover(originalUrl, finalInit, NEWCLAW_BASE_URLS, headers)
+
+                 if (!response.ok) {
+                   if (!isLastKey && FAILOVER_STATUS_CODES.has(response.status)) continue
+                   const savedResponse = await saveResponseIfEnabled(response, "claude", { url: originalUrl, model: modelId })
+                   return transformClaudeResponse(savedResponse)
+                 }
+
+                 const savedResponse = await saveResponseIfEnabled(response, "claude", { url: originalUrl, model: modelId })
+                 return transformClaudeResponse(savedResponse)
+               }
+
+                // Fallback path (DeepSeek/Grok/Gemini)
+                console.log(`[newclaw-auth] fallback path for model=${modelId}, family=${family}`)
+                let fallbackInit = init
+                let fallbackIsStreaming = isStreaming
+                
+                // Apply full request transformation (like Codex path does)
+                if (init?.body && typeof init.body === "string") {
+                  try {
+                    const fallbackBody = JSON.parse(init.body as string)
+                    const transformedBody = await transformRequestBody(fallbackBody)
+                    fallbackInit = { ...init, body: JSON.stringify(transformedBody) }
+                    fallbackIsStreaming = true
+                    console.log(`[newclaw-auth] fallback: applied transformRequestBody, stream=${transformedBody.stream}`)
+                  } catch (err) {
+                    console.log(`[newclaw-auth] fallback: transformRequestBody failed, proceeding with original: ${err instanceof Error ? err.message : String(err)}`)
+                  }
                 }
 
-                const headers = createNewclawHeaders(requestInit, currentKey, {
-                  promptCacheKey: transformation?.body.prompt_cache_key,
-                })
-
-                const targetUrl = rewriteUrl(originalUrl, CODEX_BASE_URL)
-                const response = await fetch(targetUrl, {
-                  ...requestInit,
-                  headers,
-                })
-
-                await saveResponseIfEnabled(response.clone(), "codex", { url: targetUrl, model: modelId })
+                const headers = createNewclawHeaders(fallbackInit, currentKey)
+                const response = await fetchWithUrlFailover(originalUrl, fallbackInit, NEWCLAW_BASE_URLS, headers)
+                console.log(`[newclaw-auth] fallback response: status=${response.status}, contentType=${response.headers.get("content-type")}`)
 
                 if (!response.ok) {
-                  if (!isLastKey && isFailoverStatus(response.status)) continue
+                  if (!isLastKey && FAILOVER_STATUS_CODES.has(response.status)) continue
                   return await handleErrorResponse(response)
                 }
 
-                return await handleSuccessResponse(response, isStreaming)
-              }
-
-              if (isClaudeRequest) {
-                const targetUrl = rewriteUrl(originalUrl, NEWCLAW_ANTHROPIC_BASE_URL)
-                
-                let transformedInit = transformClaudeRequest(init)
-                const finalInit = transformedInit ?? init
-
-                const headers = new Headers(finalInit?.headers ?? {})
-                headers.set("x-api-key", currentKey)
-                headers.set("anthropic-version", "2023-06-01")
-                if (!headers.has(HEADER_NAMES.CONTENT_TYPE)) {
-                  headers.set(HEADER_NAMES.CONTENT_TYPE, "application/json")
-                }
-
-                const response = await fetch(targetUrl, {
-                  ...finalInit,
-                  headers,
-                })
-
-                if (!response.ok) {
-                  if (!isLastKey && isFailoverStatus(response.status)) continue
-                  const savedResponse = await saveResponseIfEnabled(response, "claude", { url: targetUrl, model: modelId })
-                  return transformClaudeResponse(savedResponse)
-                }
-
-                const savedResponse = await saveResponseIfEnabled(response, "claude", { url: targetUrl, model: modelId })
-                return transformClaudeResponse(savedResponse)
-              }
-
-               // Fallback path (DeepSeek/Grok/Gemini)
-               console.log(`[newclaw-auth] fallback path for model=${modelId}, family=${family}`)
-               let fallbackInit = init
-               let fallbackIsStreaming = isStreaming
-               
-               // Apply full request transformation (like Codex path does)
-               if (init?.body && typeof init.body === "string") {
-                 try {
-                   const fallbackBody = JSON.parse(init.body as string)
-                   const transformedBody = await transformRequestBody(fallbackBody)
-                   fallbackInit = { ...init, body: JSON.stringify(transformedBody) }
-                   fallbackIsStreaming = true
-                   console.log(`[newclaw-auth] fallback: applied transformRequestBody, stream=${transformedBody.stream}`)
-                 } catch (err) {
-                   console.log(`[newclaw-auth] fallback: transformRequestBody failed, proceeding with original: ${err instanceof Error ? err.message : String(err)}`)
-                 }
-               }
-
-               const headers = createNewclawHeaders(fallbackInit, currentKey)
-               const targetUrl = rewriteUrl(originalUrl, NEWCLAW_BASE_URL)
-               console.log(`[newclaw-auth] fallback: originalUrl=${originalUrl}, targetUrl=${targetUrl}, isStreaming=${fallbackIsStreaming}`)
-               const response = await fetch(targetUrl, { ...fallbackInit, headers })
-               console.log(`[newclaw-auth] fallback response: status=${response.status}, contentType=${response.headers.get("content-type")}`)
-
-               if (!response.ok) {
-                 if (!isLastKey && isFailoverStatus(response.status)) continue
-                 return await handleErrorResponse(response)
-               }
-
-               return await handleSuccessResponse(response, fallbackIsStreaming)
+                return await handleSuccessResponse(response, fallbackIsStreaming)
             } catch (err) {
               if (isLastKey) throw err
               // Network error on non-last key: try next
