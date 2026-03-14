@@ -422,18 +422,19 @@ export const NewclawAuthPlugin: Plugin = async (ctx: PluginInput) => {
                 let fallbackInit = init
                 let fallbackIsStreaming = isStreaming
                 
-                // Apply full request transformation (like Codex path does)
-                if (init?.body && typeof init.body === "string") {
-                  try {
-                    const fallbackBody = JSON.parse(init.body as string)
-                    const transformedBody = await transformRequestBody(fallbackBody)
-                    fallbackInit = { ...init, body: JSON.stringify(transformedBody) }
-                    fallbackIsStreaming = true
-                    console.log(`[newclaw-auth] fallback: applied transformRequestBody, stream=${transformedBody.stream}`)
-                  } catch (err) {
-                    console.log(`[newclaw-auth] fallback: transformRequestBody failed, proceeding with original: ${err instanceof Error ? err.message : String(err)}`)
-                  }
-                }
+                 // Apply full request transformation (like Codex path does)
+                 if (init?.body && typeof init.body === "string") {
+                   try {
+                     const fallbackBody = JSON.parse(init.body as string)
+                     const transformedBody = await transformRequestBody(fallbackBody)
+                     fallbackInit = { ...init, body: JSON.stringify(transformedBody) }
+                     fallbackIsStreaming = true
+                     console.log(`[newclaw-auth] fallback: applied transformRequestBody, stream=${transformedBody.stream}, model=${transformedBody.model}`)
+                     console.log(`[newclaw-auth] fallback request body keys: ${Object.keys(transformedBody).join(", ")}`)
+                   } catch (err) {
+                     console.log(`[newclaw-auth] fallback: transformRequestBody failed, proceeding with original: ${err instanceof Error ? err.message : String(err)}`)
+                   }
+                 }
 
                  const headers = createNewclawHeaders(fallbackInit, currentKey)
                  console.log(`[newclaw-auth] fallback headers: x-forwarded-host=${headers.get("x-forwarded-host")}, authorization=${headers.get("authorization")?.substring(0, 20)}...`)

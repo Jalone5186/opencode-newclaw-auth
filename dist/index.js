@@ -1655,7 +1655,8 @@ var NewclawAuthPlugin = async (ctx) => {
                   const transformedBody = await transformRequestBody(fallbackBody);
                   fallbackInit = { ...init, body: JSON.stringify(transformedBody) };
                   fallbackIsStreaming = true;
-                  console.log(`[newclaw-auth] fallback: applied transformRequestBody, stream=${transformedBody.stream}`);
+                  console.log(`[newclaw-auth] fallback: applied transformRequestBody, stream=${transformedBody.stream}, model=${transformedBody.model}`);
+                  console.log(`[newclaw-auth] fallback request body keys: ${Object.keys(transformedBody).join(", ")}`);
                 } catch (err) {
                   console.log(`[newclaw-auth] fallback: transformRequestBody failed, proceeding with original: ${err instanceof Error ? err.message : String(err)}`);
                 }
