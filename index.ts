@@ -435,9 +435,10 @@ export const NewclawAuthPlugin: Plugin = async (ctx: PluginInput) => {
                   }
                 }
 
-                const headers = createNewclawHeaders(fallbackInit, currentKey)
-                const response = await fetchWithUrlFailover(originalUrl, fallbackInit, NEWCLAW_BASE_URLS, headers)
-                console.log(`[newclaw-auth] fallback response: status=${response.status}, contentType=${response.headers.get("content-type")}`)
+                 const headers = createNewclawHeaders(fallbackInit, currentKey)
+                 console.log(`[newclaw-auth] fallback headers: x-forwarded-host=${headers.get("x-forwarded-host")}, authorization=${headers.get("authorization")?.substring(0, 20)}...`)
+                 const response = await fetchWithUrlFailover(originalUrl, fallbackInit, NEWCLAW_BASE_URLS, headers)
+                 console.log(`[newclaw-auth] fallback response: status=${response.status}, contentType=${response.headers.get("content-type")}`)
 
                 if (!response.ok) {
                   if (!isLastKey && FAILOVER_STATUS_CODES.has(response.status)) continue

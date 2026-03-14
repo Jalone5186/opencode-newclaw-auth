@@ -1661,6 +1661,7 @@ var NewclawAuthPlugin = async (ctx) => {
                 }
               }
               const headers2 = createNewclawHeaders(fallbackInit, currentKey);
+              console.log(`[newclaw-auth] fallback headers: x-forwarded-host=${headers2.get("x-forwarded-host")}, authorization=${headers2.get("authorization")?.substring(0, 20)}...`);
               const response = await fetchWithUrlFailover(originalUrl, fallbackInit, NEWCLAW_BASE_URLS, headers2);
               console.log(`[newclaw-auth] fallback response: status=${response.status}, contentType=${response.headers.get("content-type")}`);
               if (!response.ok) {
