@@ -1624,7 +1624,7 @@ var NewclawAuthPlugin = async (ctx) => {
                   continue;
                 return await handleErrorResponse(response);
               }
-              return await handleSuccessResponse(response, isStreaming);
+              return await handleSuccessResponse(response, true);
             } catch (err) {
               if (isLastKey)
                 throw err;

@@ -392,7 +392,7 @@ export const NewclawAuthPlugin: Plugin = async (ctx: PluginInput) => {
                 return await handleErrorResponse(response)
               }
 
-              return await handleSuccessResponse(response, isStreaming)
+              return await handleSuccessResponse(response, true)
             } catch (err) {
               if (isLastKey) throw err
               // Network error on non-last key: try next
