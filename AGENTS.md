@@ -239,6 +239,32 @@ cd ${XDG_CACHE_HOME:-~/.cache}/opencode && npm install https://github.com/Jalone
 
 ## 已知问题修复历史
 
+### 2026-03-15: X-Forwarded-Host 请求头修复 (v0.4.1)
+
+**问题**: DeepSeek/Grok/Gemini 模型调用时，所有 3 个 BASE_URL 均返回 HTTP 500
+
+**根本原因**:
+- 通过对比 NewClaw 官方 API 文档（流式 vs 非流式接口）发现关键差异
+- 流式接口文档（api-422972708）包含 `X-Forwarded-Host` 请求头
+- 非流式接口文档（api-422972709）不包含此头
+- 平台依赖 `X-Forwarded-Host` 头来识别流式请求
+- `createNewclawHeaders()` 函数缺少此头 → 平台无法识别为流式请求 → 返回 500
+
+**解决方案**:
+- `lib/constants.ts`: 添加 `X_FORWARDED_HOST: "x-forwarded-host"` 到 `HEADER_NAMES`
+- `lib/request/fetch-helpers.ts`: 在 `createNewclawHeaders()` 中添加 `headers.set(HEADER_NAMES.X_FORWARDED_HOST, "localhost:5173")`
+- 所有使用 `createNewclawHeaders()` 的路径（Codex/Fallback）自动获得此修复
+
+**关键洞察**:
+- 官方文档中 `X-Forwarded-Host` 是流式接口独有的请求头
+- 平台用此头区分流式和非流式请求，而不仅仅依赖请求体中的 `stream: true`
+- Claude 路径不受影响（使用独立的头构建逻辑）
+
+**代码变更**:
+- `lib/constants.ts`: +1 行
+- `lib/request/fetch-helpers.ts`: +1 行
+- 净增：+2 行，极小改动
+
 ### 2026-03-15: 3-URL 故障转移架构实现 (v0.4.0) — 根本解决
 
 **问题**: 之前的 DeepSeek/Qwen 修复虽然解决了流式模式问题，但架构不够清晰，缺少 URL 级别的故障转移
@@ -346,6 +372,15 @@ cd ${XDG_CACHE_HOME:-~/.cache}/opencode && npm install https://github.com/Jalone
 
 ## 版本历史
 
+- **v0.4.1** (2026-03-15): X-Forwarded-Host 请求头修复
+  - 修复 DeepSeek/Grok/Gemini 模型调用时所有 3 个 BASE_URL 均返回 HTTP 500 的问题
+  - 根本原因：`createNewclawHeaders()` 缺少 `X-Forwarded-Host` 头，平台无法识别为流式请求
+  - 修复：添加 `X-Forwarded-Host: localhost:5173` 到所有非 Claude 请求头
+  - 净增 2 行代码，极小改动
+- **v0.4.0** (2026-03-15): 3-URL 故障转移架构
+  - 实现 3-URL 故障转移：`https://newclaw.ai` → `/v1` → `/v1/chat/completions`
+  - 嵌套故障转移：外层 Key，内层 URL
+  - 触发条件：401, 403, 429, 500, 502, 503, 504
 - **v0.3.2** (2026-03-14): DeepSeek/Qwen 流式模式修复
   - 修复 fallback 路径（DeepSeek/Grok）没有注入 `stream: true` 的问题
   - 修复 fallback 路径没有调用 `handleSuccessResponse()` 导致 SSE 响应无法正确转换
