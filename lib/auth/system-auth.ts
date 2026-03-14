@@ -4,11 +4,9 @@
  * @output Session credentials, all API token keys
  * @pos    Auth - programmatic login to NewClaw system API for token discovery
  *
- * Login flow:
+ * Login flow (verified against live NewClaw API):
  *   POST /api/user/login  →  session cookie + user id
- *   GET  /api/user/self/token  →  access_token (32-char)
- *   GET  /api/token/?p=1&page_size=100  →  token list (keys masked)
- *   POST /api/token/:id/key  →  full key per token
+ *   GET  /api/token/?p=1&page_size=100  →  token list with full keys (using session cookie)
  */
 
 import { readFile, writeFile, mkdir } from "node:fs/promises"
@@ -19,17 +17,16 @@ const PACKAGE_NAME = "opencode-newclaw-auth"
 const BASE_URL = "https://newclaw.ai"
 const API_TIMEOUT_MS = 15_000
 const TOKEN_PAGE_SIZE = 100
-
-// ===== Credentials File =====
+const TOKEN_KEY_PREFIX = "sk-"
 
 export interface NewclawCredentials {
   username: string
   password: string
 }
 
-export interface SystemSession {
+interface LoginSession {
   userId: number
-  accessToken: string
+  cookie: string
 }
 
 export interface TokenInfo {
@@ -38,8 +35,6 @@ export interface TokenInfo {
   name: string
   group: string
   status: number
-  models: string
-  modelLimitsEnabled: boolean
 }
 
 function getPluginDir(): string {
@@ -71,8 +66,6 @@ export async function saveCredentials(creds: NewclawCredentials): Promise<void> 
   await writeFile(filePath, JSON.stringify(creds, null, 2) + "\n", "utf-8")
 }
 
-// ===== System API Client =====
-
 async function timedFetch(url: string, options: RequestInit): Promise<Response> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS)
@@ -83,18 +76,12 @@ async function timedFetch(url: string, options: RequestInit): Promise<Response> 
   }
 }
 
-/**
- * Login and obtain system session.
- * POST /api/user/login → session cookie + user id
- * GET  /api/user/self/token → access_token
- */
-export async function systemLogin(creds: NewclawCredentials): Promise<SystemSession | undefined> {
+async function systemLogin(creds: NewclawCredentials): Promise<LoginSession | undefined> {
   try {
     const loginRes = await timedFetch(`${BASE_URL}/api/user/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username: creds.username, password: creds.password }),
-      redirect: "manual",
     })
 
     if (!loginRes.ok) {
@@ -103,46 +90,28 @@ export async function systemLogin(creds: NewclawCredentials): Promise<SystemSess
       return undefined
     }
 
-    const loginData = (await loginRes.json()) as { success: boolean; data?: { id?: number; require_2fa?: boolean } }
-    if (!loginData.success) return undefined
-    if (loginData.data?.require_2fa) {
-      console.warn(`[${PACKAGE_NAME}] 2FA is enabled on this account — not supported in CLI mode`)
+    const loginData = (await loginRes.json()) as { success: boolean; message?: string; data?: { id?: number } }
+    if (!loginData.success) {
+      console.warn(`[${PACKAGE_NAME}] Login failed: ${loginData.message ?? "unknown error"}`)
       return undefined
     }
 
     const userId = loginData.data?.id
     if (!userId) return undefined
 
-    // Extract session cookie from Set-Cookie header
     const setCookieHeaders = loginRes.headers.getSetCookie?.() ?? []
-    const cookieStr = setCookieHeaders.map((c: string) => c.split(";")[0]).join("; ")
-
-    // Get access_token via the session
-    const tokenRes = await timedFetch(`${BASE_URL}/api/user/self/token`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Cookie: cookieStr,
-        "New-Api-User": String(userId),
-      },
-    })
-
-    if (!tokenRes.ok) {
-      console.warn(`[${PACKAGE_NAME}] Failed to get access token: HTTP ${tokenRes.status}`)
+    const cookie = setCookieHeaders.map((c: string) => c.split(";")[0]).join("; ")
+    if (!cookie) {
+      console.warn(`[${PACKAGE_NAME}] Login succeeded but no session cookie returned`)
       return undefined
     }
 
-    const tokenData = (await tokenRes.json()) as { success: boolean; data?: string }
-    if (!tokenData.success || !tokenData.data) return undefined
-
-    return { userId, accessToken: tokenData.data }
+    return { userId, cookie }
   } catch (err) {
     console.warn(`[${PACKAGE_NAME}] System login error: ${err instanceof Error ? err.message : err}`)
     return undefined
   }
 }
-
-// ===== Token Discovery =====
 
 interface TokenListResponse {
   success: boolean
@@ -156,35 +125,30 @@ interface TokenListResponse {
       name: string
       group: string
       status: number
-      model_limits: string
-      model_limits_enabled: boolean
     }>
   }
 }
 
-interface TokenKeyResponse {
-  success: boolean
-  data?: { key: string }
+function ensureKeyPrefix(key: string): string {
+  return key.startsWith(TOKEN_KEY_PREFIX) ? key : TOKEN_KEY_PREFIX + key
 }
 
-function systemHeaders(session: SystemSession): Record<string, string> {
-  return {
-    "Content-Type": "application/json",
-    Authorization: session.accessToken,
-    "New-Api-User": String(session.userId),
-  }
-}
-
-export async function fetchAllTokens(session: SystemSession): Promise<TokenInfo[]> {
+async function fetchAllTokens(session: LoginSession): Promise<TokenInfo[]> {
   const tokens: TokenInfo[] = []
   let page = 1
   let total = Infinity
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Cookie: session.cookie,
+    "New-Api-User": String(session.userId),
+  }
 
   while (tokens.length < total) {
     try {
       const res = await timedFetch(
         `${BASE_URL}/api/token/?p=${page}&page_size=${TOKEN_PAGE_SIZE}`,
-        { method: "GET", headers: systemHeaders(session) },
+        { method: "GET", headers },
       )
 
       if (!res.ok) break
@@ -197,17 +161,14 @@ export async function fetchAllTokens(session: SystemSession): Promise<TokenInfo[
       if (items.length === 0) break
 
       for (const item of items) {
-        // Skip disabled/expired tokens (status 1 = enabled)
         if (item.status !== 1) continue
 
         tokens.push({
           id: item.id,
-          key: item.key,
+          key: ensureKeyPrefix(item.key),
           name: item.name,
           group: item.group,
           status: item.status,
-          models: item.model_limits,
-          modelLimitsEnabled: item.model_limits_enabled,
         })
       }
 
@@ -220,27 +181,12 @@ export async function fetchAllTokens(session: SystemSession): Promise<TokenInfo[
   return tokens
 }
 
-export async function fetchTokenKey(session: SystemSession, tokenId: number): Promise<string | undefined> {
-  try {
-    const res = await timedFetch(
-      `${BASE_URL}/api/token/${tokenId}/key`,
-      { method: "POST", headers: systemHeaders(session) },
-    )
-
-    if (!res.ok) return undefined
-
-    const data = (await res.json()) as TokenKeyResponse
-    if (!data.success || !data.data?.key) return undefined
-
-    return data.data.key
-  } catch {
-    return undefined
-  }
-}
-
 /**
- * Full flow: login → get all tokens → resolve all full keys.
+ * Full flow: login with username/password → fetch all tokens with full keys.
  * Returns array of { key, group, name } for each active token.
+ *
+ * NewClaw API returns full (unmasked) keys in the token list response,
+ * so no extra per-token key fetch is needed.
  */
 export async function discoverAllTokenKeys(creds: NewclawCredentials): Promise<
   Array<{ key: string; group: string; name: string; tokenId: number }> | undefined
@@ -256,28 +202,6 @@ export async function discoverAllTokenKeys(creds: NewclawCredentials): Promise<
     return undefined
   }
 
-  console.log(`[${PACKAGE_NAME}] Found ${tokens.length} active token(s), resolving keys...`)
-
-  // Resolve full keys in parallel (masked keys from list are useless)
-  const results = await Promise.allSettled(
-    tokens.map(async (t) => {
-      const fullKey = await fetchTokenKey(session, t.id)
-      return fullKey ? { key: fullKey, group: t.group, name: t.name, tokenId: t.id } : undefined
-    }),
-  )
-
-  const resolved = results
-    .filter((r): r is PromiseFulfilledResult<{ key: string; group: string; name: string; tokenId: number } | undefined> =>
-      r.status === "fulfilled",
-    )
-    .map((r) => r.value)
-    .filter((v): v is { key: string; group: string; name: string; tokenId: number } => v !== undefined)
-
-  if (resolved.length === 0) {
-    console.warn(`[${PACKAGE_NAME}] Could not resolve any token keys`)
-    return undefined
-  }
-
-  console.log(`[${PACKAGE_NAME}] Resolved ${resolved.length} token key(s)`)
-  return resolved
+  console.log(`[${PACKAGE_NAME}] Found ${tokens.length} active token(s)`)
+  return tokens.map((t) => ({ key: t.key, group: t.group, name: t.name, tokenId: t.id }))
 }

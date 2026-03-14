@@ -922,6 +922,7 @@ var PACKAGE_NAME2 = "opencode-newclaw-auth";
 var BASE_URL = "https://newclaw.ai";
 var API_TIMEOUT_MS = 15000;
 var TOKEN_PAGE_SIZE = 100;
+var TOKEN_KEY_PREFIX = "sk-";
 function getPluginDir() {
   return path2.resolve(import.meta.dirname ?? path2.join(os2.homedir(), ".cache", "opencode", "node_modules", PACKAGE_NAME2));
 }
@@ -958,8 +959,7 @@ async function systemLogin(creds) {
     const loginRes = await timedFetch(`${BASE_URL}/api/user/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: creds.username, password: creds.password }),
-      redirect: "manual"
+      body: JSON.stringify({ username: creds.username, password: creds.password })
     });
     if (!loginRes.ok) {
       const body = await loginRes.json().catch(() => ({}));
@@ -967,52 +967,40 @@ async function systemLogin(creds) {
       return;
     }
     const loginData = await loginRes.json();
-    if (!loginData.success)
-      return;
-    if (loginData.data?.require_2fa) {
-      console.warn(`[${PACKAGE_NAME2}] 2FA is enabled on this account \u2014 not supported in CLI mode`);
+    if (!loginData.success) {
+      console.warn(`[${PACKAGE_NAME2}] Login failed: ${loginData.message ?? "unknown error"}`);
       return;
     }
     const userId = loginData.data?.id;
     if (!userId)
       return;
     const setCookieHeaders = loginRes.headers.getSetCookie?.() ?? [];
-    const cookieStr = setCookieHeaders.map((c) => c.split(";")[0]).join("; ");
-    const tokenRes = await timedFetch(`${BASE_URL}/api/user/self/token`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Cookie: cookieStr,
-        "New-Api-User": String(userId)
-      }
-    });
-    if (!tokenRes.ok) {
-      console.warn(`[${PACKAGE_NAME2}] Failed to get access token: HTTP ${tokenRes.status}`);
+    const cookie = setCookieHeaders.map((c) => c.split(";")[0]).join("; ");
+    if (!cookie) {
+      console.warn(`[${PACKAGE_NAME2}] Login succeeded but no session cookie returned`);
       return;
     }
-    const tokenData = await tokenRes.json();
-    if (!tokenData.success || !tokenData.data)
-      return;
-    return { userId, accessToken: tokenData.data };
+    return { userId, cookie };
   } catch (err) {
     console.warn(`[${PACKAGE_NAME2}] System login error: ${err instanceof Error ? err.message : err}`);
     return;
   }
 }
-function systemHeaders(session) {
-  return {
-    "Content-Type": "application/json",
-    Authorization: session.accessToken,
-    "New-Api-User": String(session.userId)
-  };
+function ensureKeyPrefix(key) {
+  return key.startsWith(TOKEN_KEY_PREFIX) ? key : TOKEN_KEY_PREFIX + key;
 }
 async function fetchAllTokens(session) {
   const tokens = [];
   let page = 1;
   let total = Infinity;
+  const headers = {
+    "Content-Type": "application/json",
+    Cookie: session.cookie,
+    "New-Api-User": String(session.userId)
+  };
   while (tokens.length < total) {
     try {
-      const res = await timedFetch(`${BASE_URL}/api/token/?p=${page}&page_size=${TOKEN_PAGE_SIZE}`, { method: "GET", headers: systemHeaders(session) });
+      const res = await timedFetch(`${BASE_URL}/api/token/?p=${page}&page_size=${TOKEN_PAGE_SIZE}`, { method: "GET", headers });
       if (!res.ok)
         break;
       const data = await res.json();
@@ -1027,12 +1015,10 @@ async function fetchAllTokens(session) {
           continue;
         tokens.push({
           id: item.id,
-          key: item.key,
+          key: ensureKeyPrefix(item.key),
           name: item.name,
           group: item.group,
-          status: item.status,
-          models: item.model_limits,
-          modelLimitsEnabled: item.model_limits_enabled
+          status: item.status
         });
       }
       page++;
@@ -1041,19 +1027,6 @@ async function fetchAllTokens(session) {
     }
   }
   return tokens;
-}
-async function fetchTokenKey(session, tokenId) {
-  try {
-    const res = await timedFetch(`${BASE_URL}/api/token/${tokenId}/key`, { method: "POST", headers: systemHeaders(session) });
-    if (!res.ok)
-      return;
-    const data = await res.json();
-    if (!data.success || !data.data?.key)
-      return;
-    return data.data.key;
-  } catch {
-    return;
-  }
 }
 async function discoverAllTokenKeys(creds) {
   const session = await systemLogin(creds);
@@ -1065,18 +1038,8 @@ async function discoverAllTokenKeys(creds) {
     console.warn(`[${PACKAGE_NAME2}] No active tokens found for this account`);
     return;
   }
-  console.log(`[${PACKAGE_NAME2}] Found ${tokens.length} active token(s), resolving keys...`);
-  const results = await Promise.allSettled(tokens.map(async (t) => {
-    const fullKey = await fetchTokenKey(session, t.id);
-    return fullKey ? { key: fullKey, group: t.group, name: t.name, tokenId: t.id } : undefined;
-  }));
-  const resolved = results.filter((r) => r.status === "fulfilled").map((r) => r.value).filter((v) => v !== undefined);
-  if (resolved.length === 0) {
-    console.warn(`[${PACKAGE_NAME2}] Could not resolve any token keys`);
-    return;
-  }
-  console.log(`[${PACKAGE_NAME2}] Resolved ${resolved.length} token key(s)`);
-  return resolved;
+  console.log(`[${PACKAGE_NAME2}] Found ${tokens.length} active token(s)`);
+  return tokens.map((t) => ({ key: t.key, group: t.group, name: t.name, tokenId: t.id }));
 }
 
 // lib/models/auto-sync.ts
