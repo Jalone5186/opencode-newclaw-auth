@@ -8,9 +8,15 @@ import os4 from "os";
 var PLUGIN_NAME = "opencode-newclaw-auth";
 var PROVIDER_ID = "newclaw";
 var AUTH_METHOD_LABEL = "NewClaw API Key";
-var NEWCLAW_BASE_URL = "https://newclaw.ai/v1";
-var NEWCLAW_ANTHROPIC_BASE_URL = "https://newclaw.ai/v1";
-var CODEX_BASE_URL = "https://newclaw.ai/v1";
+var NEWCLAW_BASE_URLS = [
+  "https://newclaw.ai",
+  "https://newclaw.ai/v1",
+  "https://newclaw.ai/v1/chat/completions"
+];
+var NEWCLAW_BASE_URL = NEWCLAW_BASE_URLS[0];
+var NEWCLAW_ANTHROPIC_BASE_URL = NEWCLAW_BASE_URLS[0];
+var CODEX_BASE_URL = NEWCLAW_BASE_URLS[0];
+var FAILOVER_STATUS_CODES = new Set([401, 403, 429, 500, 502, 503, 504]);
 var USER_AGENT = "opencode-newclaw-auth/0.1.0";
 var ORIGINATOR = "opencode_newclaw";
 var SAVE_RAW_RESPONSE_ENV = "SAVE_RAW_RESPONSE";
@@ -1518,6 +1524,29 @@ var rewriteUrl = (originalUrl, baseUrl) => {
     return originalUrl;
   }
 };
+var fetchWithUrlFailover = async (originalUrl, init, baseUrls, headers) => {
+  for (let urlIndex = 0;urlIndex < baseUrls.length; urlIndex++) {
+    const currentUrl = baseUrls[urlIndex];
+    const isLastUrl = urlIndex === baseUrls.length - 1;
+    try {
+      const targetUrl = rewriteUrl(originalUrl, currentUrl);
+      const response = await fetch(targetUrl, { ...init, headers });
+      if (response.ok) {
+        return response;
+      }
+      if (!isLastUrl && FAILOVER_STATUS_CODES.has(response.status)) {
+        console.log(`[newclaw-auth] url-failover: status=${response.status}, trying next URL (${urlIndex + 1}/${baseUrls.length})`);
+        continue;
+      }
+      return response;
+    } catch (err) {
+      if (isLastUrl)
+        throw err;
+      console.log(`[newclaw-auth] url-failover: network error, trying next URL (${urlIndex + 1}/${baseUrls.length}): ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  throw new Error("All URL failover attempts exhausted");
+};
 var getOutputTokenLimit = (input, output) => {
   const modelLimit = input.model.limit.output;
   if (typeof modelLimit === "number" && modelLimit > 0) {
@@ -1575,21 +1604,16 @@ var NewclawAuthPlugin = async (ctx) => {
                 const headers3 = createNewclawHeaders(requestInit, currentKey, {
                   promptCacheKey: transformation?.body.prompt_cache_key
                 });
-                const targetUrl2 = rewriteUrl(originalUrl, CODEX_BASE_URL);
-                const response2 = await fetch(targetUrl2, {
-                  ...requestInit,
-                  headers: headers3
-                });
-                await saveResponseIfEnabled(response2.clone(), "codex", { url: targetUrl2, model: modelId });
+                const response2 = await fetchWithUrlFailover(originalUrl, requestInit, NEWCLAW_BASE_URLS, headers3);
+                await saveResponseIfEnabled(response2.clone(), "codex", { url: originalUrl, model: modelId });
                 if (!response2.ok) {
-                  if (!isLastKey && isFailoverStatus(response2.status))
+                  if (!isLastKey && FAILOVER_STATUS_CODES.has(response2.status))
                     continue;
                   return await handleErrorResponse(response2);
                 }
                 return await handleSuccessResponse(response2, isStreaming);
               }
               if (isClaudeRequest) {
-                const targetUrl2 = rewriteUrl(originalUrl, NEWCLAW_ANTHROPIC_BASE_URL);
                 let transformedInit = transformClaudeRequest(init);
                 const finalInit = transformedInit ?? init;
                 const headers3 = new Headers(finalInit?.headers ?? {});
@@ -1598,17 +1622,14 @@ var NewclawAuthPlugin = async (ctx) => {
                 if (!headers3.has(HEADER_NAMES.CONTENT_TYPE)) {
                   headers3.set(HEADER_NAMES.CONTENT_TYPE, "application/json");
                 }
-                const response2 = await fetch(targetUrl2, {
-                  ...finalInit,
-                  headers: headers3
-                });
+                const response2 = await fetchWithUrlFailover(originalUrl, finalInit, NEWCLAW_BASE_URLS, headers3);
                 if (!response2.ok) {
-                  if (!isLastKey && isFailoverStatus(response2.status))
+                  if (!isLastKey && FAILOVER_STATUS_CODES.has(response2.status))
                     continue;
-                  const savedResponse2 = await saveResponseIfEnabled(response2, "claude", { url: targetUrl2, model: modelId });
+                  const savedResponse2 = await saveResponseIfEnabled(response2, "claude", { url: originalUrl, model: modelId });
                   return transformClaudeResponse(savedResponse2);
                 }
-                const savedResponse = await saveResponseIfEnabled(response2, "claude", { url: targetUrl2, model: modelId });
+                const savedResponse = await saveResponseIfEnabled(response2, "claude", { url: originalUrl, model: modelId });
                 return transformClaudeResponse(savedResponse);
               }
               console.log(`[newclaw-auth] fallback path for model=${modelId}, family=${family}`);
@@ -1626,12 +1647,10 @@ var NewclawAuthPlugin = async (ctx) => {
                 }
               }
               const headers2 = createNewclawHeaders(fallbackInit, currentKey);
-              const targetUrl = rewriteUrl(originalUrl, NEWCLAW_BASE_URL);
-              console.log(`[newclaw-auth] fallback: originalUrl=${originalUrl}, targetUrl=${targetUrl}, isStreaming=${fallbackIsStreaming}`);
-              const response = await fetch(targetUrl, { ...fallbackInit, headers: headers2 });
+              const response = await fetchWithUrlFailover(originalUrl, fallbackInit, NEWCLAW_BASE_URLS, headers2);
               console.log(`[newclaw-auth] fallback response: status=${response.status}, contentType=${response.headers.get("content-type")}`);
               if (!response.ok) {
-                if (!isLastKey && isFailoverStatus(response.status))
+                if (!isLastKey && FAILOVER_STATUS_CODES.has(response.status))
                   continue;
                 return await handleErrorResponse(response);
               }
