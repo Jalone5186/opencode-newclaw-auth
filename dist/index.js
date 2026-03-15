@@ -467,9 +467,17 @@ class KeyRegistry {
   selectKeysForModel(modelId, fallbackKey) {
     const candidates = [];
     for (const profile of this.profiles) {
-      if (profile.models.includes(modelId)) {
-        candidates.push({ key: profile.key, ratio: profile.groupRatio });
+      if (!profile.models.includes(modelId))
+        continue;
+      if (profile.modelEndpointMap) {
+        const supportedTypes = profile.modelEndpointMap.get(modelId);
+        const isDeepSeekOrGrok = modelId.startsWith("deepseek-") || modelId.startsWith("grok-");
+        if (isDeepSeekOrGrok && supportedTypes && !supportedTypes.includes("openai")) {
+          console.log(`[newclaw-auth] Skipping key ${profile.key.slice(0, 8)}... for ${modelId}: missing 'openai' endpoint type`);
+          continue;
+        }
       }
+      candidates.push({ key: profile.key, ratio: profile.groupRatio });
     }
     candidates.sort((a, b) => a.ratio - b.ratio);
     const keys = candidates.map((c) => c.key);

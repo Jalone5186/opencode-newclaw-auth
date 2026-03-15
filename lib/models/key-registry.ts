@@ -50,14 +50,29 @@ export class KeyRegistry {
    * Return all candidate keys for a model, sorted by groupRatio ascending (cheapest first).
    * The fallbackKey is appended at the end if not already in the list.
    * Used for failover: try keys[0], on failure try keys[1], etc.
+   * 
+   * Filters keys by:
+   * 1. Model availability in key's model list
+   * 2. Endpoint type support (if model requires specific endpoint type)
    */
   selectKeysForModel(modelId: string, fallbackKey: string): string[] {
     const candidates: { key: string; ratio: number }[] = []
 
     for (const profile of this.profiles) {
-      if (profile.models.includes(modelId)) {
-        candidates.push({ key: profile.key, ratio: profile.groupRatio })
+      if (!profile.models.includes(modelId)) continue
+
+      // Check if this key supports the required endpoint type for this model
+      if (profile.modelEndpointMap) {
+        const supportedTypes = profile.modelEndpointMap.get(modelId)
+        // DeepSeek/Grok need "openai" endpoint type (for /v1/chat/completions)
+        const isDeepSeekOrGrok = modelId.startsWith("deepseek-") || modelId.startsWith("grok-")
+        if (isDeepSeekOrGrok && supportedTypes && !supportedTypes.includes("openai")) {
+          console.log(`[newclaw-auth] Skipping key ${profile.key.slice(0, 8)}... for ${modelId}: missing 'openai' endpoint type`)
+          continue
+        }
       }
+
+      candidates.push({ key: profile.key, ratio: profile.groupRatio })
     }
 
     candidates.sort((a, b) => a.ratio - b.ratio)
