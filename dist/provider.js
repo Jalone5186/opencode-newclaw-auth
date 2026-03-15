@@ -32,12 +32,14 @@ function createNewclaw(options = {}) {
   });
   const createModel = (modelId) => {
     const id = normalizeModelId(modelId);
+    console.log(`[newclaw-provider] createModel called: modelId=${modelId}, id=${id}, isClaude=${isClaude(id)}, isGemini=${isGemini(id)}, isResponses=${isResponses(id)}, isDeepSeekOrGrok=${isDeepSeekOrGrok(id)}`);
     if (isClaude(id))
       return anthropic.languageModel(id);
     if (isGemini(id))
       return google.languageModel(id);
     if (isResponses(id) && typeof openai.responses === "function")
       return openai.responses(id);
+    console.log(`[newclaw-provider] createModel: routing ${id} to openaiLanguageModel (chat endpoint)`);
     return openaiLanguageModel(id);
   };
   const provider = (modelId) => createModel(modelId);
@@ -52,12 +54,16 @@ function createNewclaw(options = {}) {
   };
   provider.responses = (modelId) => {
     const id = normalizeModelId(modelId);
+    console.log(`[newclaw-provider] provider.responses called: modelId=${modelId}, id=${id}, isClaude=${isClaude(id)}, isGemini=${isGemini(id)}, isDeepSeekOrGrok=${isDeepSeekOrGrok(id)}`);
     if (isClaude(id))
       return provider.chat(id);
     if (isGemini(id))
       return provider.chat(id);
-    if (isDeepSeekOrGrok(id))
+    if (isDeepSeekOrGrok(id)) {
+      console.log(`[newclaw-provider] provider.responses: routing ${id} to openaiChatModel (chat endpoint, not responses)`);
       return openaiChatModel(id);
+    }
+    console.log(`[newclaw-provider] provider.responses: routing ${id} to openai.responses (responses endpoint)`);
     return openai.responses(id);
   };
   return provider;

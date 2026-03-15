@@ -72,11 +72,13 @@ export function createNewclaw(options: NewclawProviderSettings = {}): NewclawPro
 
   const createModel = (modelId: string) => {
     const id = normalizeModelId(modelId)
+    console.log(`[newclaw-provider] createModel called: modelId=${modelId}, id=${id}, isClaude=${isClaude(id)}, isGemini=${isGemini(id)}, isResponses=${isResponses(id)}, isDeepSeekOrGrok=${isDeepSeekOrGrok(id)}`)
     if (isClaude(id)) return anthropic.languageModel(id)
     if (isGemini(id)) return google.languageModel(id) as unknown as LanguageModelV2
     // DeepSeek and Grok support "openai" endpoint type (/v1/chat/completions), not /v1/responses
     // Only use responses() for GPT/Codex models that explicitly support "openai-response" type
     if (isResponses(id) && typeof openai.responses === "function") return openai.responses(id)
+    console.log(`[newclaw-provider] createModel: routing ${id} to openaiLanguageModel (chat endpoint)`)
     return openaiLanguageModel(id)
   }
 
@@ -90,10 +92,15 @@ export function createNewclaw(options: NewclawProviderSettings = {}): NewclawPro
   }
   provider.responses = (modelId: string) => {
     const id = normalizeModelId(modelId)
+    console.log(`[newclaw-provider] provider.responses called: modelId=${modelId}, id=${id}, isClaude=${isClaude(id)}, isGemini=${isGemini(id)}, isDeepSeekOrGrok=${isDeepSeekOrGrok(id)}`)
     if (isClaude(id)) return provider.chat(id)
     if (isGemini(id)) return provider.chat(id) as LanguageModelV2
     // DeepSeek and Grok don't support /v1/responses endpoint, use openaiChatModel instead
-    if (isDeepSeekOrGrok(id)) return openaiChatModel(id)
+    if (isDeepSeekOrGrok(id)) {
+      console.log(`[newclaw-provider] provider.responses: routing ${id} to openaiChatModel (chat endpoint, not responses)`)
+      return openaiChatModel(id)
+    }
+    console.log(`[newclaw-provider] provider.responses: routing ${id} to openai.responses (responses endpoint)`)
     return openai.responses(id)
   }
 
