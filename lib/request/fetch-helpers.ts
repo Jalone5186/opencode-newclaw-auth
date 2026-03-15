@@ -76,7 +76,7 @@ export function createNewclawHeaders(
   headers.set(HEADER_NAMES.AUTHORIZATION, `Bearer ${apiKey}`)
   headers.set(HEADER_NAMES.ORIGINATOR, ORIGINATOR)
   headers.set(HEADER_NAMES.USER_AGENT, USER_AGENT)
-  headers.set(HEADER_NAMES.ACCEPT, "text/event-stream")
+  headers.set(HEADER_NAMES.ACCEPT, "application/json")
   headers.set(HEADER_NAMES.X_FORWARDED_HOST, "localhost:5173")
 
   logDebug("createNewclawHeaders", {
