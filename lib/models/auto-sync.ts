@@ -38,6 +38,7 @@ interface ModelConfig {
   name: string
   limit?: { context: number; output: number }
   modalities?: { input: string[]; output: string[] }
+  supported_endpoint_types?: string[]
 }
 
 interface KeyEntry {
@@ -210,7 +211,7 @@ async function gatherAllKeys(): Promise<{ entries: KeyEntry[]; authKey: string |
 
 // ===== Per-Key Model Discovery =====
 
-async function fetchModelsForKey(apiKey: string): Promise<string[] | undefined> {
+async function fetchModelsForKey(apiKey: string): Promise<ApiModel[] | undefined> {
   try {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS)
@@ -237,7 +238,7 @@ async function fetchModelsForKey(apiKey: string): Promise<string[] | undefined> 
         console.log(`[newclaw-auth] First model from /v1/models:`, JSON.stringify(firstModel, null, 2))
       }
 
-      return data.data.map((m) => m.id)
+      return data.data
     } finally {
       clearTimeout(timeout)
     }
@@ -251,8 +252,16 @@ async function discoverKeyProfile(
   source: "auth" | "config",
   pricingData: PricingData | undefined,
 ): Promise<KeyProfile | undefined> {
-  const models = await fetchModelsForKey(entry.key)
-  if (!models || models.length === 0) return undefined
+  const apiModels = await fetchModelsForKey(entry.key)
+  if (!apiModels || apiModels.length === 0) return undefined
+
+  const models = apiModels.map((m) => m.id)
+  const modelEndpointMap = new Map<string, string[]>()
+  for (const m of apiModels) {
+    if (m.supported_endpoint_types && Array.isArray(m.supported_endpoint_types)) {
+      modelEndpointMap.set(m.id, m.supported_endpoint_types)
+    }
+  }
 
   let groupName = "unknown"
   let groupDisplayName = "未知分组"
@@ -267,7 +276,7 @@ async function discoverKeyProfile(
     }
   }
 
-  return { key: entry.key, groupName, groupDisplayName, groupRatio, models, source }
+  return { key: entry.key, groupName, groupDisplayName, groupRatio, models, source, modelEndpointMap }
 }
 
 // ===== Key Registry Cache =====

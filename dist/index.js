@@ -1208,7 +1208,7 @@ async function fetchModelsForKey(apiKey) {
         const firstModel = data.data[0];
         console.log(`[newclaw-auth] First model from /v1/models:`, JSON.stringify(firstModel, null, 2));
       }
-      return data.data.map((m) => m.id);
+      return data.data;
     } finally {
       clearTimeout(timeout);
     }
@@ -1217,9 +1217,16 @@ async function fetchModelsForKey(apiKey) {
   }
 }
 async function discoverKeyProfile(entry, source, pricingData) {
-  const models = await fetchModelsForKey(entry.key);
-  if (!models || models.length === 0)
+  const apiModels = await fetchModelsForKey(entry.key);
+  if (!apiModels || apiModels.length === 0)
     return;
+  const models = apiModels.map((m) => m.id);
+  const modelEndpointMap = new Map;
+  for (const m of apiModels) {
+    if (m.supported_endpoint_types && Array.isArray(m.supported_endpoint_types)) {
+      modelEndpointMap.set(m.id, m.supported_endpoint_types);
+    }
+  }
   let groupName = "unknown";
   let groupDisplayName = "\u672A\u77E5\u5206\u7EC4";
   let groupRatio = 1;
@@ -1231,7 +1238,7 @@ async function discoverKeyProfile(entry, source, pricingData) {
       groupRatio = detected.groupRatio;
     }
   }
-  return { key: entry.key, groupName, groupDisplayName, groupRatio, models, source };
+  return { key: entry.key, groupName, groupDisplayName, groupRatio, models, source, modelEndpointMap };
 }
 function maskKey(key) {
   if (key.length <= 8)

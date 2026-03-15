@@ -20,6 +20,8 @@ export interface KeyProfile {
   models: string[]
   /** Where this key came from */
   source: "auth" | "config"
+  /** Map of model ID to supported endpoint types */
+  modelEndpointMap?: Map<string, string[]>
 }
 
 // ===== Registry =====
