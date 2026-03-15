@@ -117,6 +117,33 @@ export function normalizeOrphanedToolOutputs(input: InputItem[]): InputItem[] {
   })
 }
 
+/**
+ * Convert OpenCode input format to OpenAI messages format
+ */
+function convertInputToMessages(input: InputItem[]): any[] {
+  const messages: any[] = []
+  
+  for (const item of input) {
+    if (item.type === "text") {
+      // Text items become user messages
+      messages.push({
+        role: "user",
+        content: item.text || ""
+      })
+    } else if (item.type === "function_call_output") {
+      // Function outputs become tool messages
+      messages.push({
+        role: "tool",
+        tool_use_id: item.call_id,
+        content: item.output || ""
+      })
+    }
+    // Skip other types (function_call, etc.) as they're not direct messages
+  }
+  
+  return messages
+}
+
 export async function transformRequestBody(body: RequestBody, options?: { isCodex?: boolean }): Promise<RequestBody> {
   const originalModel = body.model
   const normalizedModel = normalizeModel(body.model)
@@ -141,9 +168,9 @@ export async function transformRequestBody(body: RequestBody, options?: { isCode
     // because /v1/chat/completions endpoint requires messages field
     if (!options?.isCodex) {
       console.log(`[request-transformer] converting input → messages (isCodex=${options?.isCodex})`)
-      body.messages = body.input as any
+      body.messages = convertInputToMessages(body.input)
       delete body.input
-      console.log(`[request-transformer] after conversion: hasInput=${!!body.input}, hasMessages=${!!body.messages}`)
+      console.log(`[request-transformer] after conversion: hasInput=${!!body.input}, hasMessages=${!!body.messages}, messagesLength=${(body.messages as any)?.length}`)
     } else {
       console.log(`[request-transformer] keeping input field (isCodex=true)`)
     }

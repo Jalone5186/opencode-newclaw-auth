@@ -176,6 +176,24 @@ function normalizeOrphanedToolOutputs(input) {
     return true;
   });
 }
+function convertInputToMessages(input) {
+  const messages = [];
+  for (const item of input) {
+    if (item.type === "text") {
+      messages.push({
+        role: "user",
+        content: item.text || ""
+      });
+    } else if (item.type === "function_call_output") {
+      messages.push({
+        role: "tool",
+        tool_use_id: item.call_id,
+        content: item.output || ""
+      });
+    }
+  }
+  return messages;
+}
 async function transformRequestBody(body, options) {
   const originalModel = body.model;
   const normalizedModel = normalizeModel(body.model);
@@ -193,9 +211,9 @@ async function transformRequestBody(body, options) {
     body.input = normalizeOrphanedToolOutputs(body.input);
     if (!options?.isCodex) {
       console.log(`[request-transformer] converting input \u2192 messages (isCodex=${options?.isCodex})`);
-      body.messages = body.input;
+      body.messages = convertInputToMessages(body.input);
       delete body.input;
-      console.log(`[request-transformer] after conversion: hasInput=${!!body.input}, hasMessages=${!!body.messages}`);
+      console.log(`[request-transformer] after conversion: hasInput=${!!body.input}, hasMessages=${!!body.messages}, messagesLength=${body.messages?.length}`);
     } else {
       console.log(`[request-transformer] keeping input field (isCodex=true)`);
     }
