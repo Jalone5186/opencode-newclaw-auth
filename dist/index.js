@@ -473,15 +473,6 @@ class KeyRegistry {
     for (const profile of this.profiles) {
       if (!profile.models.includes(modelId))
         continue;
-      const endpointMap = this.modelEndpointMaps.get(profile.key);
-      if (endpointMap) {
-        const supportedTypes = endpointMap.get(modelId);
-        const isDeepSeekOrGrok = modelId.startsWith("deepseek-") || modelId.startsWith("grok-");
-        if (isDeepSeekOrGrok && supportedTypes && !supportedTypes.includes("openai")) {
-          console.log(`[newclaw-auth] Skipping key ${profile.key.slice(0, 8)}... for ${modelId}: missing 'openai' endpoint type`);
-          continue;
-        }
-      }
       candidates.push({ key: profile.key, ratio: profile.groupRatio });
     }
     candidates.sort((a, b) => a.ratio - b.ratio);
@@ -490,6 +481,15 @@ class KeyRegistry {
       keys.push(fallbackKey);
     }
     return keys.length > 0 ? keys : [fallbackKey];
+  }
+  supportsEndpointType(key, modelId, endpointType) {
+    const endpointMap = this.modelEndpointMaps.get(key);
+    if (!endpointMap)
+      return true;
+    const supportedTypes = endpointMap.get(modelId);
+    if (!supportedTypes)
+      return true;
+    return supportedTypes.includes(endpointType);
   }
   getProfileForKey(key) {
     return this.profiles.find((p) => p.key === key);
@@ -1637,13 +1637,26 @@ var NewclawAuthPlugin = async (ctx) => {
           console.log(`[newclaw-auth] fetch interceptor called: model=${model}, isStreaming=${isStreaming}, url=${originalUrl}`);
           const modelId = model ? stripProviderPrefix(model) : "";
           const family = detectFamily(modelId);
-          const candidateKeys = keyRegistry.selectKeysForModel(modelId, apiKey);
+          const allCandidateKeys = keyRegistry.selectKeysForModel(modelId, apiKey);
           const isClaudeRequest = isModel(model, "claude-") || isClaudeUrl(originalUrl);
           const isCodexRequest = !isClaudeRequest && isCodexModel(model);
+          let endpointType = "openai";
+          if (isClaudeRequest)
+            endpointType = "anthropic";
+          else if (modelId.startsWith("gemini-"))
+            endpointType = "gemini";
+          const compatibleKeys = allCandidateKeys.filter((key) => keyRegistry.supportsEndpointType(key, modelId, endpointType));
+          const incompatibleKeys = allCandidateKeys.filter((key) => !keyRegistry.supportsEndpointType(key, modelId, endpointType));
+          const candidateKeys = [...compatibleKeys, ...incompatibleKeys];
+          console.log(`[newclaw-auth] Key selection: model=${modelId}, endpointType=${endpointType}, compatible=${compatibleKeys.length}, incompatible=${incompatibleKeys.length}`);
           const isFailoverStatus = (status) => status === 401 || status === 403 || status === 429;
           for (let ki = 0;ki < candidateKeys.length; ki++) {
             const currentKey = resolveApiKeyForFamily(family, candidateKeys[ki]);
             const isLastKey = ki === candidateKeys.length - 1;
+            const isCompatible = ki < compatibleKeys.length;
+            if (!isCompatible) {
+              console.log(`[newclaw-auth] Trying incompatible key ${currentKey.slice(0, 8)}... (last resort for ${modelId})`);
+            }
             try {
               if (isCodexRequest) {
                 const transformation = await transformRequestForCodex(init);

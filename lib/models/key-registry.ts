@@ -56,26 +56,15 @@ export class KeyRegistry {
    * The fallbackKey is appended at the end if not already in the list.
    * Used for failover: try keys[0], on failure try keys[1], etc.
    * 
-   * Filters keys by:
-   * 1. Model availability in key's model list
-   * 2. Endpoint type support (if model requires specific endpoint type)
+   * Returns ALL keys that have the model (no endpoint type filtering).
+   * Endpoint type compatibility is checked at request time in the fetch interceptor.
+   * This enables proper Key rotation: if first Key fails, try second Key.
    */
   selectKeysForModel(modelId: string, fallbackKey: string): string[] {
     const candidates: { key: string; ratio: number }[] = []
 
     for (const profile of this.profiles) {
       if (!profile.models.includes(modelId)) continue
-
-      const endpointMap = this.modelEndpointMaps.get(profile.key)
-      if (endpointMap) {
-        const supportedTypes = endpointMap.get(modelId)
-        const isDeepSeekOrGrok = modelId.startsWith("deepseek-") || modelId.startsWith("grok-")
-        if (isDeepSeekOrGrok && supportedTypes && !supportedTypes.includes("openai")) {
-          console.log(`[newclaw-auth] Skipping key ${profile.key.slice(0, 8)}... for ${modelId}: missing 'openai' endpoint type`)
-          continue
-        }
-      }
-
       candidates.push({ key: profile.key, ratio: profile.groupRatio })
     }
 
@@ -88,6 +77,20 @@ export class KeyRegistry {
     }
 
     return keys.length > 0 ? keys : [fallbackKey]
+  }
+
+  /**
+   * Check if a key supports a specific endpoint type for a model.
+   * Used by fetch interceptor to validate Key compatibility before sending request.
+   */
+  supportsEndpointType(key: string, modelId: string, endpointType: string): boolean {
+    const endpointMap = this.modelEndpointMaps.get(key)
+    if (!endpointMap) return true // No endpoint map = assume compatible
+    
+    const supportedTypes = endpointMap.get(modelId)
+    if (!supportedTypes) return true // Model not in map = assume compatible
+    
+    return supportedTypes.includes(endpointType)
   }
 
   /**

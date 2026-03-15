@@ -361,28 +361,45 @@ export const NewclawAuthPlugin: Plugin = async (ctx: PluginInput) => {
       const apiKey = auth.key.trim()
       if (!apiKey) return {}
 
-      return {
-        apiKey,
-        fetch: async (input: Request | string | URL, init?: RequestInit) => {
-          const originalUrl = extractRequestUrl(input)
-          const { model, isStreaming } = parseRequestBody(init)
-          
-          console.log(`[newclaw-auth] fetch interceptor called: model=${model}, isStreaming=${isStreaming}, url=${originalUrl}`)
-          
-          // Priority: env var override > keyRegistry match > auth.json unified key
-          const modelId = model ? stripProviderPrefix(model) : ""
-          const family = detectFamily(modelId)
-          const candidateKeys = keyRegistry.selectKeysForModel(modelId, apiKey)
+       return {
+         apiKey,
+         fetch: async (input: Request | string | URL, init?: RequestInit) => {
+           const originalUrl = extractRequestUrl(input)
+           const { model, isStreaming } = parseRequestBody(init)
+           
+           console.log(`[newclaw-auth] fetch interceptor called: model=${model}, isStreaming=${isStreaming}, url=${originalUrl}`)
+           
+           // Priority: env var override > keyRegistry match > auth.json unified key
+           const modelId = model ? stripProviderPrefix(model) : ""
+           const family = detectFamily(modelId)
+           const allCandidateKeys = keyRegistry.selectKeysForModel(modelId, apiKey)
 
-          const isClaudeRequest = isModel(model, "claude-") || isClaudeUrl(originalUrl)
-          const isCodexRequest = !isClaudeRequest && isCodexModel(model)
+           const isClaudeRequest = isModel(model, "claude-") || isClaudeUrl(originalUrl)
+           const isCodexRequest = !isClaudeRequest && isCodexModel(model)
 
-          // Failover: 401/403/429 triggers next key; other errors return immediately
-          const isFailoverStatus = (status: number) => status === 401 || status === 403 || status === 429
+           // Determine endpoint type for this request
+           let endpointType = "openai"
+           if (isClaudeRequest) endpointType = "anthropic"
+           else if (modelId.startsWith("gemini-")) endpointType = "gemini"
 
-          for (let ki = 0; ki < candidateKeys.length; ki++) {
-            const currentKey = resolveApiKeyForFamily(family, candidateKeys[ki])
-            const isLastKey = ki === candidateKeys.length - 1
+           // Partition keys: compatible first, then incompatible (as fallback)
+           const compatibleKeys = allCandidateKeys.filter(key => keyRegistry.supportsEndpointType(key, modelId, endpointType))
+           const incompatibleKeys = allCandidateKeys.filter(key => !keyRegistry.supportsEndpointType(key, modelId, endpointType))
+           const candidateKeys = [...compatibleKeys, ...incompatibleKeys]
+
+           console.log(`[newclaw-auth] Key selection: model=${modelId}, endpointType=${endpointType}, compatible=${compatibleKeys.length}, incompatible=${incompatibleKeys.length}`)
+
+           // Failover: 401/403/429 triggers next key; other errors return immediately
+           const isFailoverStatus = (status: number) => status === 401 || status === 403 || status === 429
+
+           for (let ki = 0; ki < candidateKeys.length; ki++) {
+             const currentKey = resolveApiKeyForFamily(family, candidateKeys[ki])
+             const isLastKey = ki === candidateKeys.length - 1
+             const isCompatible = ki < compatibleKeys.length
+             
+             if (!isCompatible) {
+               console.log(`[newclaw-auth] Trying incompatible key ${currentKey.slice(0, 8)}... (last resort for ${modelId})`)
+             }
 
             try {
                if (isCodexRequest) {
