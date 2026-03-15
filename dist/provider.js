@@ -6,6 +6,7 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 var isClaude = (modelId) => modelId.startsWith("claude-");
 var isGemini = (modelId) => modelId.startsWith("gemini-");
 var isResponses = (modelId) => modelId.startsWith("gpt-") || modelId.startsWith("codex");
+var isDeepSeekOrGrok = (modelId) => modelId.startsWith("deepseek-") || modelId.startsWith("grok-");
 var normalizeModelId = (modelId) => String(modelId).trim();
 function createNewclaw(options = {}) {
   console.log(`[newclaw-provider] createNewclaw called: apiKey=${options.apiKey ? options.apiKey.slice(0, 8) + "****" : "none"}, baseURL=${options.baseURL}, hasFetch=${!!options.fetch}`);
@@ -55,6 +56,8 @@ function createNewclaw(options = {}) {
       return provider.chat(id);
     if (isGemini(id))
       return provider.chat(id);
+    if (isDeepSeekOrGrok(id))
+      return openaiChatModel(id);
     return openai.responses(id);
   };
   return provider;
