@@ -258,7 +258,7 @@ export function buildProviderConfig(): Record<string, unknown> {
  */
 export function resolveApiKeyForFamily(
   family: ModelFamily,
-  unifiedKey: string,
+  candidateKey: string,
 ): string {
   const envMap: Record<ModelFamily, string> = {
     claude: "NEWCLAW_CLAUDE_API_KEY",
@@ -269,7 +269,7 @@ export function resolveApiKeyForFamily(
   }
   const envKey = process.env[envMap[family]]
   if (envKey?.trim()) return envKey.trim()
-  return unifiedKey
+  return candidateKey
 }
 
 /**
