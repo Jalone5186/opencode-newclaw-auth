@@ -133,13 +133,6 @@ export async function transformRequestBody(body: RequestBody, options?: { isCode
   if (body.input && Array.isArray(body.input)) {
     body.input = sanitizeItemIds(body.input)
     body.input = normalizeOrphanedToolOutputs(body.input)
-    
-    // Only convert input → messages for non-Codex models (DeepSeek/Grok/Gemini)
-    // Codex models need to keep the input field
-    if (!options?.isCodex && !body.messages) {
-      body.messages = body.input as any
-      delete body.input
-    }
   }
 
   const reasoningConfig = resolveReasoningConfig(normalizedModel, body)

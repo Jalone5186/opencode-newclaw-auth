@@ -189,10 +189,6 @@ async function transformRequestBody(body, options) {
   if (body.input && Array.isArray(body.input)) {
     body.input = sanitizeItemIds(body.input);
     body.input = normalizeOrphanedToolOutputs(body.input);
-    if (!options?.isCodex && !body.messages) {
-      body.messages = body.input;
-      delete body.input;
-    }
   }
   const reasoningConfig = resolveReasoningConfig(normalizedModel, body);
   body.reasoning = { ...body.reasoning, ...reasoningConfig };
@@ -1714,7 +1710,6 @@ var NewclawAuthPlugin = async (ctx) => {
                   fallbackInit = { ...init, body: JSON.stringify(transformedBody) };
                   fallbackIsStreaming = true;
                   console.log(`[newclaw-auth] fallback: applied transformRequestBody, stream=${transformedBody.stream}, model=${transformedBody.model}`);
-                  console.log(`[newclaw-auth] fallback request body keys: ${Object.keys(transformedBody).join(", ")}`);
                 } catch (err) {
                   console.log(`[newclaw-auth] fallback: transformRequestBody failed, proceeding with original: ${err instanceof Error ? err.message : String(err)}`);
                 }
@@ -1722,17 +1717,6 @@ var NewclawAuthPlugin = async (ctx) => {
               const headers2 = createNewclawHeaders(fallbackInit, currentKey, {
                 isStreaming: fallbackIsStreaming
               });
-              if (fallbackInit?.body && typeof fallbackInit.body === "string") {
-                try {
-                  const bodyForLog = JSON.parse(fallbackInit.body);
-                  const hasInput = "input" in bodyForLog;
-                  const hasMessages = "messages" in bodyForLog;
-                  console.log(`[newclaw-auth] fallback request body validation: hasInput=${hasInput}, hasMessages=${hasMessages}, stream=${bodyForLog.stream}`);
-                  if (hasInput && hasMessages) {
-                    console.warn(`[newclaw-auth] WARNING: request body contains both 'input' and 'messages' fields - this may cause API errors`);
-                  }
-                } catch {}
-              }
               console.log(`[newclaw-auth] fallback headers: x-forwarded-host=${headers2.get("x-forwarded-host")}, authorization=${headers2.get("authorization")?.substring(0, 20)}...`);
               const response = await fetchWithUrlFailover(originalUrl, fallbackInit, NEWCLAW_BASE_URLS, headers2);
               console.log(`[newclaw-auth] fallback response: status=${response.status}, contentType=${response.headers.get("content-type")}`);
