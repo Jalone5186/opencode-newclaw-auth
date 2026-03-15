@@ -176,11 +176,12 @@ function normalizeOrphanedToolOutputs(input) {
     return true;
   });
 }
-async function transformRequestBody(body) {
+async function transformRequestBody(body, options) {
   const originalModel = body.model;
   const normalizedModel = normalizeModel(body.model);
   logDebug(`Model lookup: "${originalModel}" -> "${normalizedModel}"`, {
-    hasTools: !!body.tools
+    hasTools: !!body.tools,
+    isCodex: options?.isCodex
   });
   body.model = normalizedModel;
   body.stream = true;
@@ -188,10 +189,10 @@ async function transformRequestBody(body) {
   if (body.input && Array.isArray(body.input)) {
     body.input = sanitizeItemIds(body.input);
     body.input = normalizeOrphanedToolOutputs(body.input);
-    if (!body.messages) {
+    if (!options?.isCodex && !body.messages) {
       body.messages = body.input;
+      delete body.input;
     }
-    delete body.input;
   }
   const reasoningConfig = resolveReasoningConfig(normalizedModel, body);
   body.reasoning = { ...body.reasoning, ...reasoningConfig };
@@ -293,7 +294,7 @@ async function transformRequestForCodex(init) {
     return;
   try {
     const body = JSON.parse(init.body);
-    const transformedBody = await transformRequestBody(body);
+    const transformedBody = await transformRequestBody(body, { isCodex: true });
     logRequest("after-transform", {
       model: transformedBody.model,
       hasTools: !!transformedBody.tools,

@@ -117,12 +117,13 @@ export function normalizeOrphanedToolOutputs(input: InputItem[]): InputItem[] {
   })
 }
 
-export async function transformRequestBody(body: RequestBody): Promise<RequestBody> {
+export async function transformRequestBody(body: RequestBody, options?: { isCodex?: boolean }): Promise<RequestBody> {
   const originalModel = body.model
   const normalizedModel = normalizeModel(body.model)
 
   logDebug(`Model lookup: "${originalModel}" -> "${normalizedModel}"`, {
     hasTools: !!body.tools,
+    isCodex: options?.isCodex,
   })
 
   body.model = normalizedModel
@@ -133,10 +134,12 @@ export async function transformRequestBody(body: RequestBody): Promise<RequestBo
     body.input = sanitizeItemIds(body.input)
     body.input = normalizeOrphanedToolOutputs(body.input)
     
-    if (!body.messages) {
+    // Only convert input → messages for non-Codex models (DeepSeek/Grok/Gemini)
+    // Codex models need to keep the input field
+    if (!options?.isCodex && !body.messages) {
       body.messages = body.input as any
+      delete body.input
     }
-    delete body.input
   }
 
   const reasoningConfig = resolveReasoningConfig(normalizedModel, body)

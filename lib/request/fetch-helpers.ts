@@ -38,7 +38,7 @@ export async function transformRequestForCodex(
 
   try {
     const body = JSON.parse(init.body as string) as RequestBody
-    const transformedBody = await transformRequestBody(body)
+    const transformedBody = await transformRequestBody(body, { isCodex: true })
 
     logRequest("after-transform", {
       model: transformedBody.model,
