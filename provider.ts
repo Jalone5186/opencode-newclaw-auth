@@ -92,7 +92,7 @@ export function createNewclaw(options: NewclawProviderSettings = {}): NewclawPro
     const id = normalizeModelId(modelId)
     if (isClaude(id)) return provider.chat(id)
     if (isGemini(id)) return provider.chat(id) as LanguageModelV2
-    // DeepSeek and Grok don't support /v1/responses endpoint, use chat instead
+    // DeepSeek and Grok don't support /v1/responses endpoint, use openaiChatModel instead
     if (isDeepSeekOrGrok(id)) return openaiChatModel(id)
     return openai.responses(id)
   }
