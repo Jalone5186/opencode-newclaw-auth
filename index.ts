@@ -407,7 +407,7 @@ export const NewclawAuthPlugin: Plugin = async (ctx: PluginInput) => {
                    return await handleErrorResponse(response)
                  }
 
-                 return await handleSuccessResponse(response, isStreaming)
+                  return await handleSuccessResponse(response, true)
                }
 
                if (isClaudeRequest) {

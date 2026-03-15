@@ -1662,7 +1662,7 @@ var NewclawAuthPlugin = async (ctx) => {
                     continue;
                   return await handleErrorResponse(response2);
                 }
-                return await handleSuccessResponse(response2, isStreaming);
+                return await handleSuccessResponse(response2, true);
               }
               if (isClaudeRequest) {
                 let transformedInit = transformClaudeRequest(init);
