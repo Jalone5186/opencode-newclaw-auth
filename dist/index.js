@@ -1547,6 +1547,7 @@ var fetchWithUrlFailover = async (originalUrl, init, baseUrls, headers) => {
     const isLastUrl = urlIndex === baseUrls.length - 1;
     try {
       let targetUrl = rewriteUrl(originalUrl, currentUrl);
+      let finalInit = init;
       if (currentUrl.includes("/chat/completions")) {
         const base = new URL(currentUrl);
         const original = new URL(originalUrl);
@@ -1554,8 +1555,19 @@ var fetchWithUrlFailover = async (originalUrl, init, baseUrls, headers) => {
         targetUrl = base.toString();
       } else if (targetUrl.includes("/responses")) {
         targetUrl = targetUrl.replace("/responses", "/chat/completions");
+        if (init?.body && typeof init.body === "string") {
+          try {
+            const body = JSON.parse(init.body);
+            if (body.input && !body.messages) {
+              body.messages = body.input;
+              delete body.input;
+            }
+            finalInit = { ...init, body: JSON.stringify(body) };
+            console.log(`[newclaw-auth] converted request body from Responses to Chat Completions format`);
+          } catch {}
+        }
       }
-      const response = await fetch(targetUrl, { ...init, headers });
+      const response = await fetch(targetUrl, { ...finalInit, headers });
       if (response.ok) {
         return response;
       }

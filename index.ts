@@ -263,6 +263,7 @@ const fetchWithUrlFailover = async (
 
     try {
       let targetUrl = rewriteUrl(originalUrl, currentUrl)
+      let finalInit = init
 
       // If baseUrl is an explicit endpoint (e.g. /v1/chat/completions),
       // use it directly instead of appending the original path
@@ -273,9 +274,24 @@ const fetchWithUrlFailover = async (
         targetUrl = base.toString()
       } else if (targetUrl.includes("/responses")) {
         targetUrl = targetUrl.replace("/responses", "/chat/completions")
+        // Convert request body from Responses API format to Chat Completions format
+        if (init?.body && typeof init.body === "string") {
+          try {
+            const body = JSON.parse(init.body)
+            // Convert 'input' (Responses API) to 'messages' (Chat Completions API)
+            if (body.input && !body.messages) {
+              body.messages = body.input
+              delete body.input
+            }
+            finalInit = { ...init, body: JSON.stringify(body) }
+            console.log(`[newclaw-auth] converted request body from Responses to Chat Completions format`)
+          } catch {
+            // If parsing fails, use original init
+          }
+        }
       }
       
-      const response = await fetch(targetUrl, { ...init, headers })
+      const response = await fetch(targetUrl, { ...finalInit, headers })
 
       if (response.ok) {
         return response
