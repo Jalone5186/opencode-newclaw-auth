@@ -374,22 +374,24 @@ export const NewclawAuthPlugin: Plugin = async (ctx: PluginInput) => {
            if (isClaudeRequest) endpointType = "anthropic"
            else if (modelId.startsWith("gemini-")) endpointType = "gemini"
 
-           // Partition keys: compatible first, then incompatible (as fallback)
-           const compatibleKeys = allCandidateKeys.filter(key => keyRegistry.supportsEndpointType(key, modelId, endpointType))
-           const incompatibleKeys = allCandidateKeys.filter(key => !keyRegistry.supportsEndpointType(key, modelId, endpointType))
-           const candidateKeys = [...compatibleKeys, ...incompatibleKeys]
+            // Partition keys: compatible first, then incompatible (as fallback)
+            const compatibleKeys = allCandidateKeys.filter(key => keyRegistry.supportsEndpointType(key, modelId, endpointType))
+            const incompatibleKeys = allCandidateKeys.filter(key => !keyRegistry.supportsEndpointType(key, modelId, endpointType))
+            const candidateKeys = [...compatibleKeys, ...incompatibleKeys]
 
-           console.log(`[newclaw-auth] Key selection: model=${modelId}, endpointType=${endpointType}, compatible=${compatibleKeys.length}, incompatible=${incompatibleKeys.length}`)
+            console.log(`[newclaw-auth] Key selection: model=${modelId}, endpointType=${endpointType}, compatible=${compatibleKeys.length}, incompatible=${incompatibleKeys.length}`)
+            console.log(`[newclaw-auth] candidateKeys array: ${candidateKeys.map(k => k.slice(0, 8)).join(", ")}`)
 
            // Failover: 401/403/429 triggers next key; other errors return immediately
            const isFailoverStatus = (status: number) => status === 401 || status === 403 || status === 429
 
-           for (let ki = 0; ki < candidateKeys.length; ki++) {
-             const currentKey = resolveApiKeyForFamily(family, candidateKeys[ki])
-             const isLastKey = ki === candidateKeys.length - 1
-             const isCompatible = ki < compatibleKeys.length
-             
-             console.log(`[newclaw-auth] Key loop iteration: ki=${ki}, isLastKey=${isLastKey}, isCompatible=${isCompatible}, key=${currentKey.slice(0, 8)}...`)
+            for (let ki = 0; ki < candidateKeys.length; ki++) {
+              const candidateKeyAtIndex = candidateKeys[ki]
+              const currentKey = resolveApiKeyForFamily(family, candidateKeyAtIndex)
+              const isLastKey = ki === candidateKeys.length - 1
+              const isCompatible = ki < compatibleKeys.length
+              
+              console.log(`[newclaw-auth] Key loop iteration: ki=${ki}, candidateKeys[${ki}]=${candidateKeyAtIndex.slice(0, 8)}..., resolvedKey=${currentKey.slice(0, 8)}..., isLastKey=${isLastKey}, isCompatible=${isCompatible}`)
              
              if (!isCompatible) {
                console.log(`[newclaw-auth] Trying incompatible key ${currentKey.slice(0, 8)}... (last resort for ${modelId})`)
