@@ -387,6 +387,8 @@ export const NewclawAuthPlugin: Plugin = async (ctx: PluginInput) => {
              const isLastKey = ki === candidateKeys.length - 1
              const isCompatible = ki < compatibleKeys.length
              
+             console.log(`[newclaw-auth] Key loop iteration: ki=${ki}, isLastKey=${isLastKey}, isCompatible=${isCompatible}, key=${currentKey.slice(0, 8)}...`)
+             
              if (!isCompatible) {
                console.log(`[newclaw-auth] Trying incompatible key ${currentKey.slice(0, 8)}... (last resort for ${modelId})`)
              }
@@ -411,7 +413,11 @@ export const NewclawAuthPlugin: Plugin = async (ctx: PluginInput) => {
                  await saveResponseIfEnabled(response.clone(), "codex", { url: originalUrl, model: modelId })
 
                  if (!response.ok) {
-                   if (!isLastKey && FAILOVER_STATUS_CODES.has(response.status)) continue
+                   console.log(`[newclaw-auth] Fallback response not ok: status=${response.status}, isLastKey=${isLastKey}, inFailoverCodes=${FAILOVER_STATUS_CODES.has(response.status)}`)
+                   if (!isLastKey && FAILOVER_STATUS_CODES.has(response.status)) {
+                     console.log(`[newclaw-auth] Switching to next key (ki=${ki}/${candidateKeys.length})`)
+                     continue
+                   }
                    return await handleErrorResponse(response)
                  }
 

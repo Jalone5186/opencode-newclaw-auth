@@ -147,8 +147,8 @@ export async function transformRequestBody(body: RequestBody): Promise<RequestBo
 
   body.include = resolveInclude(body)
 
-  body.max_output_tokens = undefined
-  body.max_completion_tokens = undefined
+  delete body.max_output_tokens
+  delete body.max_completion_tokens
 
   return body
 }

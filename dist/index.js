@@ -198,8 +198,8 @@ async function transformRequestBody(body) {
   const verbosity = resolveTextVerbosity(body);
   body.text = { ...body.text, verbosity };
   body.include = resolveInclude(body);
-  body.max_output_tokens = undefined;
-  body.max_completion_tokens = undefined;
+  delete body.max_output_tokens;
+  delete body.max_completion_tokens;
   return body;
 }
 
@@ -1653,6 +1653,7 @@ var NewclawAuthPlugin = async (ctx) => {
             const currentKey = resolveApiKeyForFamily(family, candidateKeys[ki]);
             const isLastKey = ki === candidateKeys.length - 1;
             const isCompatible = ki < compatibleKeys.length;
+            console.log(`[newclaw-auth] Key loop iteration: ki=${ki}, isLastKey=${isLastKey}, isCompatible=${isCompatible}, key=${currentKey.slice(0, 8)}...`);
             if (!isCompatible) {
               console.log(`[newclaw-auth] Trying incompatible key ${currentKey.slice(0, 8)}... (last resort for ${modelId})`);
             }
@@ -1671,8 +1672,11 @@ var NewclawAuthPlugin = async (ctx) => {
                 const response2 = await fetchWithUrlFailover(originalUrl, requestInit, NEWCLAW_BASE_URLS, headers3);
                 await saveResponseIfEnabled(response2.clone(), "codex", { url: originalUrl, model: modelId });
                 if (!response2.ok) {
-                  if (!isLastKey && FAILOVER_STATUS_CODES.has(response2.status))
+                  console.log(`[newclaw-auth] Fallback response not ok: status=${response2.status}, isLastKey=${isLastKey}, inFailoverCodes=${FAILOVER_STATUS_CODES.has(response2.status)}`);
+                  if (!isLastKey && FAILOVER_STATUS_CODES.has(response2.status)) {
+                    console.log(`[newclaw-auth] Switching to next key (ki=${ki}/${candidateKeys.length})`);
                     continue;
+                  }
                   return await handleErrorResponse(response2);
                 }
                 return await handleSuccessResponse(response2, true);
