@@ -359,13 +359,15 @@ export const NewclawAuthPlugin: Plugin = async (ctx: PluginInput) => {
            
            console.log(`[newclaw-auth] fetch interceptor called: model=${model}, isStreaming=${isStreaming}, url=${originalUrl}`)
            
-           // Priority: env var override > keyRegistry match > auth.json unified key
-           const modelId = model ? stripProviderPrefix(model) : ""
-           const family = detectFamily(modelId)
-           const allCandidateKeys = keyRegistry.selectKeysForModel(modelId, apiKey)
+            // Priority: env var override > keyRegistry match > auth.json unified key
+            const modelId = model ? stripProviderPrefix(model) : ""
+            const family = detectFamily(modelId)
+            const allCandidateKeys = keyRegistry.selectKeysForModel(modelId, apiKey)
 
-           const isClaudeRequest = isModel(model, "claude-") || isClaudeUrl(originalUrl)
-           const isCodexRequest = !isClaudeRequest && isCodexModel(model)
+            console.log(`[newclaw-auth] allCandidateKeys from registry: ${allCandidateKeys.map(k => k.slice(0, 8)).join(", ")}`)
+
+            const isClaudeRequest = isModel(model, "claude-") || isClaudeUrl(originalUrl)
+            const isCodexRequest = !isClaudeRequest && isCodexModel(model)
 
            // Determine endpoint type for this request
            let endpointType = "openai"

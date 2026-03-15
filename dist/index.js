@@ -1637,6 +1637,7 @@ var NewclawAuthPlugin = async (ctx) => {
           const modelId = model ? stripProviderPrefix(model) : "";
           const family = detectFamily(modelId);
           const allCandidateKeys = keyRegistry.selectKeysForModel(modelId, apiKey);
+          console.log(`[newclaw-auth] allCandidateKeys from registry: ${allCandidateKeys.map((k) => k.slice(0, 8)).join(", ")}`);
           const isClaudeRequest = isModel(model, "claude-") || isClaudeUrl(originalUrl);
           const isCodexRequest = !isClaudeRequest && isCodexModel(model);
           let endpointType = "openai";
