@@ -186,13 +186,21 @@ async function transformRequestBody(body, options) {
   body.model = normalizedModel;
   body.stream = true;
   body.store = false;
+  console.log(`[request-transformer] transformRequestBody: input=${typeof body.input}, isArray=${Array.isArray(body.input)}, isCodex=${options?.isCodex}`);
   if (body.input && Array.isArray(body.input)) {
+    console.log(`[request-transformer] input is array, sanitizing...`);
     body.input = sanitizeItemIds(body.input);
     body.input = normalizeOrphanedToolOutputs(body.input);
     if (!options?.isCodex) {
+      console.log(`[request-transformer] converting input \u2192 messages (isCodex=${options?.isCodex})`);
       body.messages = body.input;
       delete body.input;
+      console.log(`[request-transformer] after conversion: hasInput=${!!body.input}, hasMessages=${!!body.messages}`);
+    } else {
+      console.log(`[request-transformer] keeping input field (isCodex=true)`);
     }
+  } else {
+    console.log(`[request-transformer] input is not array or missing, skipping conversion`);
   }
   const reasoningConfig = resolveReasoningConfig(normalizedModel, body);
   body.reasoning = { ...body.reasoning, ...reasoningConfig };

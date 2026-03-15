@@ -130,16 +130,25 @@ export async function transformRequestBody(body: RequestBody, options?: { isCode
   body.stream = true
   body.store = false
 
+  console.log(`[request-transformer] transformRequestBody: input=${typeof body.input}, isArray=${Array.isArray(body.input)}, isCodex=${options?.isCodex}`)
+  
   if (body.input && Array.isArray(body.input)) {
+    console.log(`[request-transformer] input is array, sanitizing...`)
     body.input = sanitizeItemIds(body.input)
     body.input = normalizeOrphanedToolOutputs(body.input)
     
     // For non-Codex models (DeepSeek/Grok/Gemini), convert input → messages
     // because /v1/chat/completions endpoint requires messages field
     if (!options?.isCodex) {
+      console.log(`[request-transformer] converting input → messages (isCodex=${options?.isCodex})`)
       body.messages = body.input as any
       delete body.input
+      console.log(`[request-transformer] after conversion: hasInput=${!!body.input}, hasMessages=${!!body.messages}`)
+    } else {
+      console.log(`[request-transformer] keeping input field (isCodex=true)`)
     }
+  } else {
+    console.log(`[request-transformer] input is not array or missing, skipping conversion`)
   }
 
   const reasoningConfig = resolveReasoningConfig(normalizedModel, body)
