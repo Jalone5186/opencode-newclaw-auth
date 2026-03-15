@@ -6,7 +6,6 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 var isClaude = (modelId) => modelId.startsWith("claude-");
 var isGemini = (modelId) => modelId.startsWith("gemini-");
 var isResponses = (modelId) => modelId.startsWith("gpt-") || modelId.startsWith("codex");
-var isDeepSeekOrGrok = (modelId) => modelId.startsWith("deepseek-") || modelId.startsWith("grok-");
 var normalizeModelId = (modelId) => String(modelId).trim();
 function createNewclaw(options = {}) {
   console.log(`[newclaw-provider] createNewclaw called: apiKey=${options.apiKey ? options.apiKey.slice(0, 8) + "****" : "none"}, baseURL=${options.baseURL}, hasFetch=${!!options.fetch}`);
@@ -36,7 +35,7 @@ function createNewclaw(options = {}) {
       return anthropic.languageModel(id);
     if (isGemini(id))
       return google.languageModel(id);
-    if ((isResponses(id) || isDeepSeekOrGrok(id)) && typeof openai.responses === "function")
+    if (isResponses(id) && typeof openai.responses === "function")
       return openai.responses(id);
     return openaiLanguageModel(id);
   };

@@ -74,8 +74,9 @@ export function createNewclaw(options: NewclawProviderSettings = {}): NewclawPro
     const id = normalizeModelId(modelId)
     if (isClaude(id)) return anthropic.languageModel(id)
     if (isGemini(id)) return google.languageModel(id) as unknown as LanguageModelV2
-    // DeepSeek and Grok use responses() to declare streaming support
-    if ((isResponses(id) || isDeepSeekOrGrok(id)) && typeof openai.responses === "function") return openai.responses(id)
+    // DeepSeek and Grok support "openai" endpoint type (/v1/chat/completions), not /v1/responses
+    // Only use responses() for GPT/Codex models that explicitly support "openai-response" type
+    if (isResponses(id) && typeof openai.responses === "function") return openai.responses(id)
     return openaiLanguageModel(id)
   }
 
