@@ -188,6 +188,10 @@ async function transformRequestBody(body) {
   if (body.input && Array.isArray(body.input)) {
     body.input = sanitizeItemIds(body.input);
     body.input = normalizeOrphanedToolOutputs(body.input);
+    if (!body.messages) {
+      body.messages = body.input;
+    }
+    delete body.input;
   }
   const reasoningConfig = resolveReasoningConfig(normalizedModel, body);
   body.reasoning = { ...body.reasoning, ...reasoningConfig };
@@ -319,10 +323,13 @@ function createNewclawHeaders(init, apiKey, opts) {
   headers.set(HEADER_NAMES.ORIGINATOR, ORIGINATOR);
   headers.set(HEADER_NAMES.USER_AGENT, USER_AGENT);
   headers.set(HEADER_NAMES.ACCEPT, "application/json");
-  headers.set(HEADER_NAMES.X_FORWARDED_HOST, "localhost:5173");
+  if (opts?.isStreaming) {
+    headers.set(HEADER_NAMES.X_FORWARDED_HOST, "localhost:5173");
+  }
   logDebug("createNewclawHeaders", {
     hasXForwardedHost: headers.has(HEADER_NAMES.X_FORWARDED_HOST),
-    xForwardedHostValue: headers.get(HEADER_NAMES.X_FORWARDED_HOST)
+    xForwardedHostValue: headers.get(HEADER_NAMES.X_FORWARDED_HOST),
+    isStreaming: opts?.isStreaming
   });
   if (!headers.has(HEADER_NAMES.CONTENT_TYPE)) {
     headers.set(HEADER_NAMES.CONTENT_TYPE, "application/json");
@@ -1569,17 +1576,6 @@ var fetchWithUrlFailover = async (originalUrl, init, baseUrls, headers) => {
         targetUrl = base.toString();
       } else if (targetUrl.includes("/responses")) {
         targetUrl = targetUrl.replace("/responses", "/chat/completions");
-        if (init?.body && typeof init.body === "string") {
-          try {
-            const body = JSON.parse(init.body);
-            if (body.input && !body.messages) {
-              body.messages = body.input;
-              delete body.input;
-            }
-            finalInit = { ...init, body: JSON.stringify(body) };
-            console.log(`[newclaw-auth] converted request body from Responses to Chat Completions format`);
-          } catch {}
-        }
       }
       const response = await fetch(targetUrl, { ...finalInit, headers });
       if (response.ok) {
@@ -1669,7 +1665,8 @@ var NewclawAuthPlugin = async (ctx) => {
                   requestInit = { ...init, body: sanitized };
                 }
                 const headers3 = createNewclawHeaders(requestInit, currentKey, {
-                  promptCacheKey: transformation?.body.prompt_cache_key
+                  promptCacheKey: transformation?.body.prompt_cache_key,
+                  isStreaming: true
                 });
                 const response2 = await fetchWithUrlFailover(originalUrl, requestInit, NEWCLAW_BASE_URLS, headers3);
                 await saveResponseIfEnabled(response2.clone(), "codex", { url: originalUrl, model: modelId });
@@ -1714,7 +1711,20 @@ var NewclawAuthPlugin = async (ctx) => {
                   console.log(`[newclaw-auth] fallback: transformRequestBody failed, proceeding with original: ${err instanceof Error ? err.message : String(err)}`);
                 }
               }
-              const headers2 = createNewclawHeaders(fallbackInit, currentKey);
+              const headers2 = createNewclawHeaders(fallbackInit, currentKey, {
+                isStreaming: fallbackIsStreaming
+              });
+              if (fallbackInit?.body && typeof fallbackInit.body === "string") {
+                try {
+                  const bodyForLog = JSON.parse(fallbackInit.body);
+                  const hasInput = "input" in bodyForLog;
+                  const hasMessages = "messages" in bodyForLog;
+                  console.log(`[newclaw-auth] fallback request body validation: hasInput=${hasInput}, hasMessages=${hasMessages}, stream=${bodyForLog.stream}`);
+                  if (hasInput && hasMessages) {
+                    console.warn(`[newclaw-auth] WARNING: request body contains both 'input' and 'messages' fields - this may cause API errors`);
+                  }
+                } catch {}
+              }
               console.log(`[newclaw-auth] fallback headers: x-forwarded-host=${headers2.get("x-forwarded-host")}, authorization=${headers2.get("authorization")?.substring(0, 20)}...`);
               const response = await fetchWithUrlFailover(originalUrl, fallbackInit, NEWCLAW_BASE_URLS, headers2);
               console.log(`[newclaw-auth] fallback response: status=${response.status}, contentType=${response.headers.get("content-type")}`);

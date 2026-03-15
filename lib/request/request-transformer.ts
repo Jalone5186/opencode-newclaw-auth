@@ -132,6 +132,11 @@ export async function transformRequestBody(body: RequestBody): Promise<RequestBo
   if (body.input && Array.isArray(body.input)) {
     body.input = sanitizeItemIds(body.input)
     body.input = normalizeOrphanedToolOutputs(body.input)
+    
+    if (!body.messages) {
+      body.messages = body.input as any
+    }
+    delete body.input
   }
 
   const reasoningConfig = resolveReasoningConfig(normalizedModel, body)

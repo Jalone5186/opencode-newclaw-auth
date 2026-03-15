@@ -65,7 +65,7 @@ export async function transformRequestForCodex(
 export function createNewclawHeaders(
   init: RequestInit | undefined,
   apiKey: string,
-  opts?: { promptCacheKey?: string },
+  opts?: { promptCacheKey?: string; isStreaming?: boolean },
 ): Headers {
   const headers = new Headers(init?.headers ?? {})
 
@@ -77,11 +77,15 @@ export function createNewclawHeaders(
   headers.set(HEADER_NAMES.ORIGINATOR, ORIGINATOR)
   headers.set(HEADER_NAMES.USER_AGENT, USER_AGENT)
   headers.set(HEADER_NAMES.ACCEPT, "application/json")
-  headers.set(HEADER_NAMES.X_FORWARDED_HOST, "localhost:5173")
+
+  if (opts?.isStreaming) {
+    headers.set(HEADER_NAMES.X_FORWARDED_HOST, "localhost:5173")
+  }
 
   logDebug("createNewclawHeaders", {
     hasXForwardedHost: headers.has(HEADER_NAMES.X_FORWARDED_HOST),
     xForwardedHostValue: headers.get(HEADER_NAMES.X_FORWARDED_HOST),
+    isStreaming: opts?.isStreaming,
   })
 
   if (!headers.has(HEADER_NAMES.CONTENT_TYPE)) {
