@@ -57,3 +57,54 @@ export const PER_PROVIDER_KEY_ENV = {
 } as const
 
 export const UNIFIED_KEY_ENV = "NEWCLAW_API_KEY"
+
+/**
+ * Endpoint type to request path mapping
+ * Maps supported_endpoint_types from API to actual request paths
+ */
+export const ENDPOINT_TYPE_TO_PATH: Record<string, string> = {
+  // Chat/Completions endpoints
+  "openai": "/v1/chat/completions",
+  "openai-response": "/v1/responses",
+  "anthropic": "/v1/messages",
+  "gemini": "/v1/generateContent",
+  
+  // Embedding endpoints
+  "嵌入": "/v1/embeddings",
+  "embedding": "/v1/embeddings",
+  
+  // Image generation endpoints
+  "image-generation": "/v1/images/generations",
+  "dall-e-3": "/v1/images/generations",
+  "aigc-image": "/v1/images/generations",
+  "kling生图": "/v1/images/generations",
+  "omni-image": "/v1/images/generations",
+  
+  // Video generation endpoints
+  "openAI视频格式": "/v1/video/create",
+  "vidu生图": "/v1/video/create",
+  "grok视频": "/v1/video/create",
+  "runway图生视频": "/v1/video/create",
+  "wan视频生成": "/v1/video/create",
+  "aigc-video": "/v1/video/create",
+  "omni-video": "/v1/video/create",
+  
+  // Reranking endpoints
+  "rerank": "/v1/rerank",
+  
+  // Music generation endpoints
+  "suno音乐生成": "/v1/audio/generations",
+  
+  // Midjourney endpoints
+  "mj动作": "/v1/midjourney/imagine",
+  
+  // Fallback for unknown types
+} as const
+
+/**
+ * Get request path for endpoint type
+ * Returns /v1/chat/completions as fallback for unknown types
+ */
+export function getPathForEndpointType(endpointType: string): string {
+  return ENDPOINT_TYPE_TO_PATH[endpointType] || "/v1/chat/completions"
+}
