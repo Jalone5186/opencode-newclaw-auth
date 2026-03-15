@@ -1568,14 +1568,19 @@ var fetchWithUrlFailover = async (originalUrl, init, baseUrls, headers) => {
     try {
       let targetUrl = rewriteUrl(originalUrl, currentUrl);
       let finalInit = init;
+      console.log(`[newclaw-auth] url-failover: originalUrl=${originalUrl}, currentUrl=${currentUrl}, targetUrl=${targetUrl}`);
       if (currentUrl.includes("/chat/completions")) {
         const base = new URL(currentUrl);
         const original = new URL(originalUrl);
         base.search = original.search;
         targetUrl = base.toString();
+        console.log(`[newclaw-auth] url-failover: baseUrl is explicit /chat/completions, using directly: ${targetUrl}`);
       } else if (targetUrl.includes("/responses")) {
+        const oldUrl = targetUrl;
         targetUrl = targetUrl.replace("/responses", "/chat/completions");
+        console.log(`[newclaw-auth] url-failover: converting /responses to /chat/completions: ${oldUrl} \u2192 ${targetUrl}`);
       }
+      console.log(`[newclaw-auth] url-failover: final targetUrl=${targetUrl}`);
       const response = await fetch(targetUrl, { ...finalInit, headers });
       if (response.ok) {
         return response;
@@ -1708,10 +1713,13 @@ var NewclawAuthPlugin = async (ctx) => {
               if (init?.body && typeof init.body === "string") {
                 try {
                   const fallbackBody = JSON.parse(init.body);
+                  console.log(`[newclaw-auth] fallback: original request body keys: ${Object.keys(fallbackBody).join(", ")}`);
+                  console.log(`[newclaw-auth] fallback: original hasInput=${!!fallbackBody.input}, hasMessages=${!!fallbackBody.messages}`);
                   const transformedBody = await transformRequestBody(fallbackBody);
                   fallbackInit = { ...init, body: JSON.stringify(transformedBody) };
                   fallbackIsStreaming = true;
-                  console.log(`[newclaw-auth] fallback: applied transformRequestBody, stream=${transformedBody.stream}, model=${transformedBody.model}`);
+                  console.log(`[newclaw-auth] fallback: transformed request body keys: ${Object.keys(transformedBody).join(", ")}`);
+                  console.log(`[newclaw-auth] fallback: transformed hasInput=${!!transformedBody.input}, hasMessages=${!!transformedBody.messages}, stream=${transformedBody.stream}`);
                 } catch (err) {
                   console.log(`[newclaw-auth] fallback: transformRequestBody failed, proceeding with original: ${err instanceof Error ? err.message : String(err)}`);
                 }
