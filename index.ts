@@ -297,11 +297,16 @@ const fetchWithUrlFailover = async (
         return response
       }
 
-      if (!isLastUrl && FAILOVER_STATUS_CODES.has(response.status)) {
+      if (FAILOVER_STATUS_CODES.has(response.status)) {
+        if (!isLastUrl) {
+          console.log(
+            `[newclaw-auth] url-failover: status=${response.status}, trying next URL (${urlIndex + 1}/${baseUrls.length})`
+          )
+          continue
+        }
         console.log(
-          `[newclaw-auth] url-failover: status=${response.status}, trying next URL (${urlIndex + 1}/${baseUrls.length})`
+          `[newclaw-auth] url-failover: status=${response.status}, all URLs exhausted, returning to key loop`
         )
-        continue
       }
 
       return response

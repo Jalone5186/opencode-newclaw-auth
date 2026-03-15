@@ -1585,9 +1585,12 @@ var fetchWithUrlFailover = async (originalUrl, init, baseUrls, headers) => {
       if (response.ok) {
         return response;
       }
-      if (!isLastUrl && FAILOVER_STATUS_CODES.has(response.status)) {
-        console.log(`[newclaw-auth] url-failover: status=${response.status}, trying next URL (${urlIndex + 1}/${baseUrls.length})`);
-        continue;
+      if (FAILOVER_STATUS_CODES.has(response.status)) {
+        if (!isLastUrl) {
+          console.log(`[newclaw-auth] url-failover: status=${response.status}, trying next URL (${urlIndex + 1}/${baseUrls.length})`);
+          continue;
+        }
+        console.log(`[newclaw-auth] url-failover: status=${response.status}, all URLs exhausted, returning to key loop`);
       }
       return response;
     } catch (err) {
