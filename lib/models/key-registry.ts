@@ -28,12 +28,17 @@ export interface KeyProfile {
 
 export class KeyRegistry {
   private profiles: KeyProfile[] = []
+  private modelEndpointMaps: Map<string, Map<string, string[]>> = new Map()
 
   /**
    * Register a key profile.
    */
   register(profile: KeyProfile): void {
     this.profiles.push(profile)
+    // Store modelEndpointMap in memory (not serialized to JSON)
+    if (profile.modelEndpointMap) {
+      this.modelEndpointMaps.set(profile.key, profile.modelEndpointMap)
+    }
   }
 
   /**
@@ -61,10 +66,9 @@ export class KeyRegistry {
     for (const profile of this.profiles) {
       if (!profile.models.includes(modelId)) continue
 
-      // Check if this key supports the required endpoint type for this model
-      if (profile.modelEndpointMap) {
-        const supportedTypes = profile.modelEndpointMap.get(modelId)
-        // DeepSeek/Grok need "openai" endpoint type (for /v1/chat/completions)
+      const endpointMap = this.modelEndpointMaps.get(profile.key)
+      if (endpointMap) {
+        const supportedTypes = endpointMap.get(modelId)
         const isDeepSeekOrGrok = modelId.startsWith("deepseek-") || modelId.startsWith("grok-")
         if (isDeepSeekOrGrok && supportedTypes && !supportedTypes.includes("openai")) {
           console.log(`[newclaw-auth] Skipping key ${profile.key.slice(0, 8)}... for ${modelId}: missing 'openai' endpoint type`)
@@ -125,6 +129,7 @@ export class KeyRegistry {
    */
   clear(): void {
     this.profiles = []
+    this.modelEndpointMaps.clear()
   }
 
   /**

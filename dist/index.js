@@ -457,8 +457,12 @@ function detectFamily(modelId) {
 // lib/models/key-registry.ts
 class KeyRegistry {
   profiles = [];
+  modelEndpointMaps = new Map;
   register(profile) {
     this.profiles.push(profile);
+    if (profile.modelEndpointMap) {
+      this.modelEndpointMaps.set(profile.key, profile.modelEndpointMap);
+    }
   }
   selectKeyForModel(modelId, fallbackKey) {
     const keys = this.selectKeysForModel(modelId, fallbackKey);
@@ -469,8 +473,9 @@ class KeyRegistry {
     for (const profile of this.profiles) {
       if (!profile.models.includes(modelId))
         continue;
-      if (profile.modelEndpointMap) {
-        const supportedTypes = profile.modelEndpointMap.get(modelId);
+      const endpointMap = this.modelEndpointMaps.get(profile.key);
+      if (endpointMap) {
+        const supportedTypes = endpointMap.get(modelId);
         const isDeepSeekOrGrok = modelId.startsWith("deepseek-") || modelId.startsWith("grok-");
         if (isDeepSeekOrGrok && supportedTypes && !supportedTypes.includes("openai")) {
           console.log(`[newclaw-auth] Skipping key ${profile.key.slice(0, 8)}... for ${modelId}: missing 'openai' endpoint type`);
@@ -506,6 +511,7 @@ class KeyRegistry {
   }
   clear() {
     this.profiles = [];
+    this.modelEndpointMaps.clear();
   }
   getProfiles() {
     return [...this.profiles];
