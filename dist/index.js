@@ -189,6 +189,10 @@ async function transformRequestBody(body, options) {
   if (body.input && Array.isArray(body.input)) {
     body.input = sanitizeItemIds(body.input);
     body.input = normalizeOrphanedToolOutputs(body.input);
+    if (!options?.isCodex) {
+      body.messages = body.input;
+      delete body.input;
+    }
   }
   const reasoningConfig = resolveReasoningConfig(normalizedModel, body);
   body.reasoning = { ...body.reasoning, ...reasoningConfig };

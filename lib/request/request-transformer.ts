@@ -133,6 +133,13 @@ export async function transformRequestBody(body: RequestBody, options?: { isCode
   if (body.input && Array.isArray(body.input)) {
     body.input = sanitizeItemIds(body.input)
     body.input = normalizeOrphanedToolOutputs(body.input)
+    
+    // For non-Codex models (DeepSeek/Grok/Gemini), convert input → messages
+    // because /v1/chat/completions endpoint requires messages field
+    if (!options?.isCodex) {
+      body.messages = body.input as any
+      delete body.input
+    }
   }
 
   const reasoningConfig = resolveReasoningConfig(normalizedModel, body)
