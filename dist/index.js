@@ -434,6 +434,8 @@ function transformClaudeResponse(response) {
 
 // lib/models/registry.ts
 function resolveApiKeyForFamily(family, candidateKey) {
+  if (candidateKey?.trim())
+    return candidateKey.trim();
   const envMap = {
     claude: "NEWCLAW_CLAUDE_API_KEY",
     codex: "NEWCLAW_CODEX_API_KEY",

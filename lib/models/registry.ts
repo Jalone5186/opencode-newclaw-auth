@@ -254,12 +254,19 @@ export function buildProviderConfig(): Record<string, unknown> {
 
 /**
  * Determine which API key to use for a given model family.
- * Priority: per-provider env var > unified key > auth key
+ * Priority: candidateKey (from Key rotation) > per-provider env var > fallback
+ * 
+ * Note: candidateKey should always be provided during Key rotation.
+ * Env vars are only used as fallback when no candidate key is available.
  */
 export function resolveApiKeyForFamily(
   family: ModelFamily,
   candidateKey: string,
 ): string {
+  // Always use candidateKey if provided (from Key rotation loop)
+  if (candidateKey?.trim()) return candidateKey.trim()
+  
+  // Fallback to per-provider env var only if no candidate key
   const envMap: Record<ModelFamily, string> = {
     claude: "NEWCLAW_CLAUDE_API_KEY",
     codex: "NEWCLAW_CODEX_API_KEY",
@@ -269,6 +276,7 @@ export function resolveApiKeyForFamily(
   }
   const envKey = process.env[envMap[family]]
   if (envKey?.trim()) return envKey.trim()
+  
   return candidateKey
 }
 
