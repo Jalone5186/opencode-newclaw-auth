@@ -17,7 +17,7 @@ export {
   detectFamily,
 } from "./registry"
 
-export { keyRegistry, KeyRegistry, type KeyProfile } from "./key-registry"
+export { keyRegistry, KeyRegistry, type KeyProfile, parseCompositeModelId, buildCompositeModelId } from "./key-registry"
 
 export {
   fetchPricing,

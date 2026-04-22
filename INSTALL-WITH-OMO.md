@@ -1,8 +1,10 @@
-# 一键安装 opencode-newclaw-auth + oh-my-opencode
+# 一键安装 opencode-newclaw-auth + oh-my-openagent
 
-本文档介绍如何同时安装 NewClaw 认证插件和 [oh-my-opencode](https://github.com/code-yeongyu/oh-my-opencode) 增强插件。
+本文档介绍如何同时安装 NewClaw 认证插件和 [oh-my-openagent](https://github.com/code-yeongyu/oh-my-openagent) 增强插件。
 
-oh-my-opencode 提供多模型编排、并行后台代理、LSP/AST 工具等高级功能。配合 NewClaw 使用，所有代理和任务类别都会自动配置为使用 NewClaw 的优质模型。
+oh-my-openagent 提供多模型编排、并行后台代理、LSP/AST 工具等高级功能。配合 NewClaw 使用，所有代理和任务类别都会自动配置为使用 NewClaw 的优质模型。
+
+> **注意**：oh-my-openagent 的 npm 包名仍为 `oh-my-opencode`，但 GitHub 仓库已更名为 `oh-my-openagent`。插件配置中优先使用 `oh-my-openagent` 作为插件入口名，同时保持对旧名 `oh-my-opencode` 的兼容。
 
 ---
 
@@ -82,7 +84,7 @@ opencode
 
 ## OMO 模型分配表
 
-安装后，oh-my-opencode 的后台代理和任务类别会自动配置为使用以下 NewClaw 模型（替换了默认的官方模型）：
+安装后，oh-my-openagent 的后台代理和任务类别会自动配置为使用以下 NewClaw 模型（替换了默认的官方模型）：
 
 ### 代理 (Agents)
 
@@ -113,4 +115,4 @@ opencode
 | business-logic | gpt-5.4 | 业务逻辑 |
 | data-analysis | claude-sonnet-4-6 | 数据分析 |
 
-> 这些默认分配非常适合日常开发。如果你需要修改，可以直接编辑 `~/.config/opencode/oh-my-opencode.json` 文件。
+> 这些默认分配非常适合日常开发。如果你需要修改，可以直接编辑 `~/.config/opencode/oh-my-openagent.json` 文件。

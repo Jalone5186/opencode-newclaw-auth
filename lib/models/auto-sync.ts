@@ -8,7 +8,7 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises"
 import path from "node:path"
 import os from "node:os"
-import { keyRegistry, type KeyProfile } from "./key-registry"
+import { keyRegistry, type KeyProfile, buildCompositeModelId } from "./key-registry"
 import {
   fetchPricing,
   detectKeyGroup,
@@ -332,14 +332,15 @@ function getModelDisplayName(modelId: string, pricingData: PricingData | undefin
 function buildEnrichedModelConfigs(
   pricingData: PricingData | undefined,
 ): Record<string, ModelConfig> {
-  const allModels = keyRegistry.getAllModels()
+  const pairs = keyRegistry.getAllModelGroupPairs()
   const result: Record<string, ModelConfig> = {}
 
-  for (const [modelId, bestProfile] of allModels) {
+  for (const { modelId, profile } of pairs) {
+    const compositeId = buildCompositeModelId(modelId, profile.groupName)
     const baseName = getModelDisplayName(modelId, pricingData)
-    const displayName = buildDisplayName(baseName, bestProfile.groupDisplayName, bestProfile.groupRatio)
+    const displayName = buildDisplayName(baseName, profile.groupDisplayName, profile.groupRatio)
 
-    result[modelId] = {
+    result[compositeId] = {
       name: displayName,
       limit: detectLimits(modelId),
       modalities: detectModalities(modelId),
@@ -374,17 +375,21 @@ async function updateConfigModels(newModels: Record<string, ModelConfig>): Promi
     mergedModels[id] = cfg
   }
 
-  // Preserve user customizations on top of API-discovered models
+  const compositeBaseIds = new Set(
+    Object.keys(newModels)
+      .filter((id) => id.includes("@"))
+      .map((id) => id.split("@")[0]),
+  )
+
   for (const [id, existingConfig] of Object.entries(existingModels)) {
     if (typeof existingConfig === "object" && existingConfig !== null) {
-      // Only preserve user overrides for fields like limit/modalities, not the auto-generated name
+      if (!id.includes("@") && compositeBaseIds.has(id)) continue
+
       const existing = existingConfig as Record<string, unknown>
       if (mergedModels[id]) {
-        // Keep API name (with group info), but allow user to override limit/modalities
         if (existing.limit) mergedModels[id].limit = existing.limit as ModelConfig["limit"]
         if (existing.modalities) mergedModels[id].modalities = existing.modalities as ModelConfig["modalities"]
       } else {
-        // Model only exists in user config (not from API) — keep it
         mergedModels[id] = existingConfig as ModelConfig
       }
     }

@@ -1,15 +1,15 @@
 /**
  * @file omo-config-sync/index.ts
  * @input  assets/default-omo-config.json
- * @output ~/.config/opencode/oh-my-opencode.json (synced)
+ * @output ~/.config/opencode/oh-my-openagent.json (synced)
  * @pos    Hook - syncs OMO agent/category model assignments at runtime
  *
- * This module writes the default oh-my-opencode.json config file
- * so that oh-my-opencode uses NewClaw models for all agents and categories.
- * Only runs if oh-my-opencode is detected as installed.
+ * This module writes the default oh-my-openagent.json config file
+ * so that oh-my-openagent uses NewClaw models for all agents and categories.
+ * Only runs if oh-my-openagent (or legacy oh-my-opencode) is detected as installed.
  */
 
-import { readFile, writeFile, access, mkdir } from "node:fs/promises"
+import { readFile, writeFile, access, mkdir, rename } from "node:fs/promises"
 import path from "node:path"
 import os from "node:os"
 import { PLUGIN_NAME } from "../../constants"
@@ -18,7 +18,11 @@ import defaultOmoConfig from "../../../assets/default-omo-config.json"
 const homeDir = process.env.OPENCODE_TEST_HOME || os.homedir()
 const configRoot = process.env.XDG_CONFIG_HOME || path.join(homeDir, ".config")
 const configDir = path.join(configRoot, "opencode")
-const omoConfigPath = path.join(configDir, "oh-my-opencode.json")
+const omoConfigPath = path.join(configDir, "oh-my-openagent.json")
+const legacyOmoConfigPath = path.join(configDir, "oh-my-opencode.json")
+
+const OMO_PLUGIN_NAME = "oh-my-openagent"
+const OMO_LEGACY_PLUGIN_NAME = "oh-my-opencode"
 
 const fileExists = async (filePath: string) => {
   try {
@@ -29,20 +33,16 @@ const fileExists = async (filePath: string) => {
   }
 }
 
-/**
- * Check if oh-my-opencode is installed by looking for its package
- */
 async function isOmoInstalled(): Promise<boolean> {
   try {
     if (typeof import.meta.resolve === "function") {
-      import.meta.resolve("oh-my-opencode")
+      import.meta.resolve(OMO_LEGACY_PLUGIN_NAME)
       return true
     }
   } catch {
     // not found via import.meta.resolve
   }
-  // Fallback: check if the config file already exists
-  return fileExists(omoConfigPath)
+  return (await fileExists(omoConfigPath)) || (await fileExists(legacyOmoConfigPath))
 }
 
 /**
@@ -84,20 +84,31 @@ function mergeOmoConfig(
 }
 
 /**
- * Sync OMO config: write/update oh-my-opencode.json with NewClaw model assignments.
+ * Sync OMO config: write/update oh-my-openagent.json with NewClaw model assignments.
  * - If no config exists, write the full default config.
  * - If config exists, merge in any missing agents/categories from defaults.
  * - User customizations are preserved.
+ * - Migrates legacy oh-my-opencode.json → oh-my-openagent.json if needed.
  */
 export async function syncOmoConfig(): Promise<void> {
   const omoInstalled = await isOmoInstalled()
   if (!omoInstalled) {
-    return // oh-my-opencode not installed, skip
+    return
   }
 
   await mkdir(configDir, { recursive: true })
 
-  // 1. Ensure oh-my-opencode is in opencode.json plugin list
+  // Migrate legacy config file if new one doesn't exist yet
+  if (!(await fileExists(omoConfigPath)) && (await fileExists(legacyOmoConfigPath))) {
+    try {
+      await rename(legacyOmoConfigPath, omoConfigPath)
+      console.log(`[${PLUGIN_NAME}] Migrated ${legacyOmoConfigPath} → ${omoConfigPath}`)
+    } catch {
+      // Non-fatal: just copy content instead
+    }
+  }
+
+  // 1. Ensure oh-my-openagent is in opencode.json plugin list (replace legacy entry)
   const opencodeConfigPath = path.join(configDir, "opencode.json")
   const jsoncPath = path.join(configDir, "opencode.jsonc")
   const activeConfigPath = (await fileExists(jsoncPath)) ? jsoncPath : opencodeConfigPath
@@ -107,20 +118,30 @@ export async function syncOmoConfig(): Promise<void> {
     if (configText) {
       const config = JSON.parse(configText) as Record<string, any>
       const plugins: unknown[] = Array.isArray(config.plugin) ? config.plugin : []
-      const hasOmo = plugins.some(
-        (e) => typeof e === "string" && (e === "oh-my-opencode" || (e as string).startsWith("oh-my-opencode@")),
+      const hasNew = plugins.some(
+        (e) => typeof e === "string" && (e === OMO_PLUGIN_NAME || (e as string).startsWith(OMO_PLUGIN_NAME + "@")),
       )
-      if (!hasOmo) {
-        config.plugin = [...plugins, "oh-my-opencode"]
+      const hasLegacy = plugins.some(
+        (e) => typeof e === "string" && (e === OMO_LEGACY_PLUGIN_NAME || (e as string).startsWith(OMO_LEGACY_PLUGIN_NAME + "@")),
+      )
+      if (!hasNew) {
+        const updatedPlugins = hasLegacy
+          ? plugins.map((e) =>
+              typeof e === "string" && (e === OMO_LEGACY_PLUGIN_NAME || (e as string).startsWith(OMO_LEGACY_PLUGIN_NAME + "@"))
+                ? OMO_PLUGIN_NAME
+                : e,
+            )
+          : [...plugins, OMO_PLUGIN_NAME]
+        config.plugin = updatedPlugins
         await writeFile(activeConfigPath, JSON.stringify(config, null, 2) + "\n", "utf-8")
-        console.log(`[${PLUGIN_NAME}] Added oh-my-opencode to plugin list`)
+        console.log(`[${PLUGIN_NAME}] Updated plugin entry to ${OMO_PLUGIN_NAME} in plugin list`)
       }
     }
   } catch {
     // Non-fatal
   }
 
-  // 2. Sync oh-my-opencode.json model assignments
+  // 2. Sync oh-my-openagent.json model assignments
   let existingConfig: Record<string, any> = {}
   if (await fileExists(omoConfigPath)) {
     try {
@@ -143,6 +164,6 @@ export async function syncOmoConfig(): Promise<void> {
 
   if (mergedStr !== existingStr) {
     await writeFile(omoConfigPath, mergedStr, "utf-8")
-    console.log(`[${PLUGIN_NAME}] Synced oh-my-opencode config at ${omoConfigPath}`)
+    console.log(`[${PLUGIN_NAME}] Synced oh-my-openagent config at ${omoConfigPath}`)
   }
 }

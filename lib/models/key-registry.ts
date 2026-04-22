@@ -5,6 +5,33 @@
  * @pos    Core - singleton registry mapping keys to models with group info
  */
 
+// ===== Composite Model ID =====
+
+const GROUP_SEPARATOR = "@"
+
+/**
+ * Parse a composite model ID like "claude-opus-4-6@默认" into base model and group.
+ * If no group suffix, groupName is undefined.
+ */
+export function parseCompositeModelId(compositeId: string): {
+  baseModelId: string
+  groupName: string | undefined
+} {
+  const idx = compositeId.indexOf(GROUP_SEPARATOR)
+  if (idx === -1) return { baseModelId: compositeId, groupName: undefined }
+  return {
+    baseModelId: compositeId.slice(0, idx),
+    groupName: compositeId.slice(idx + 1),
+  }
+}
+
+/**
+ * Build a composite model ID from base model ID and group name.
+ */
+export function buildCompositeModelId(baseModelId: string, groupName: string): string {
+  return `${baseModelId}${GROUP_SEPARATOR}${groupName}`
+}
+
 // ===== Types =====
 
 export interface KeyProfile {
@@ -80,6 +107,48 @@ export class KeyRegistry {
   }
 
   /**
+   * Group-priority key selection for the new request flow.
+   * 
+   * Order:
+   *   1. Key from the user's selected group (targetGroupName)
+   *   2. Remaining keys sorted by groupRatio ascending (lowest first)
+   *   3. Fallback key appended if not already present
+   */
+  selectKeysWithGroupPriority(
+    modelId: string,
+    targetGroupName: string | undefined,
+    fallbackKey: string,
+  ): string[] {
+    const candidates: { key: string; ratio: number; groupName: string }[] = []
+
+    for (const profile of this.profiles) {
+      if (!profile.models.includes(modelId)) continue
+      candidates.push({ key: profile.key, ratio: profile.groupRatio, groupName: profile.groupName })
+    }
+
+    let priorityKeys: string[] = []
+    let restCandidates = candidates
+
+    if (targetGroupName) {
+      const matched = candidates.filter((c) => c.groupName === targetGroupName)
+      priorityKeys = matched.map((c) => c.key)
+      const matchedSet = new Set(priorityKeys)
+      restCandidates = candidates.filter((c) => !matchedSet.has(c.key))
+    }
+
+    restCandidates.sort((a, b) => a.ratio - b.ratio)
+    const restKeys = restCandidates.map((c) => c.key)
+
+    const keys = [...priorityKeys, ...restKeys]
+
+    if (!keys.includes(fallbackKey)) {
+      keys.push(fallbackKey)
+    }
+
+    return keys.length > 0 ? keys : [fallbackKey]
+  }
+
+  /**
    * Check if a key supports a specific endpoint type for a model.
    * Used by fetch interceptor to validate Key compatibility before sending request.
    */
@@ -117,6 +186,26 @@ export class KeyRegistry {
     }
 
     return result
+  }
+
+  /**
+   * Get ALL (model, profile) pairs — every group that can serve each model.
+   * Used for building config entries with composite IDs (model@group).
+   */
+  getAllModelGroupPairs(): Array<{ modelId: string; profile: KeyProfile }> {
+    const seen = new Set<string>()
+    const pairs: Array<{ modelId: string; profile: KeyProfile }> = []
+
+    for (const profile of this.profiles) {
+      for (const modelId of profile.models) {
+        const compositeKey = `${modelId}@${profile.groupName}`
+        if (seen.has(compositeKey)) continue
+        seen.add(compositeKey)
+        pairs.push({ modelId, profile })
+      }
+    }
+
+    return pairs
   }
 
   /**

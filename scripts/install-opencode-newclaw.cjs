@@ -153,10 +153,14 @@ async function checkOmoInstalled() {
   // npm sets INIT_CWD to the directory where `npm install` was run
   // npm_config_local_prefix points to the project root with node_modules
   var installRoot = process.env.INIT_CWD || process.env.npm_config_local_prefix || process.cwd();
-  // Method 1: Check node_modules in the install root
+  // Method 1: Check node_modules in the install root (new name first, then legacy)
+  var nmPathNew = path.join(installRoot, "node_modules", "oh-my-openagent");
+  if (existsSync(nmPathNew)) return true;
   var nmPath = path.join(installRoot, "node_modules", "oh-my-opencode");
   if (existsSync(nmPath)) return true;
-  // Method 2: Check sibling from __dirname (works if installed to node_modules directly)
+  // Method 2: Check sibling from __dirname
+  var siblingPathNew = path.resolve(__dirname, "..", "..", "oh-my-openagent");
+  if (existsSync(siblingPathNew)) return true;
   var siblingPath = path.resolve(__dirname, "..", "..", "oh-my-opencode");
   if (existsSync(siblingPath)) return true;
   // Method 3: Try require.resolve
@@ -177,17 +181,23 @@ async function checkOmoInstalled() {
 }
 
 async function writeOmoConfig() {
-  var omoConfigPath = path.join(configDir, "oh-my-opencode.json");
+  var omoConfigPath = path.join(configDir, "oh-my-openagent.json");
+  var legacyOmoConfigPath = path.join(configDir, "oh-my-opencode.json");
   var defaultConfigPath = path.resolve(__dirname, "..", "assets", "default-omo-config.json");
 
   try {
     var defaultConfig = JSON.parse(await readFile(defaultConfigPath, "utf-8"));
     var existingConfig = {};
 
+    // Read from new path first, fall back to legacy
     try {
       existingConfig = JSON.parse(await readFile(omoConfigPath, "utf-8"));
     } catch {
-      // no existing config
+      try {
+        existingConfig = JSON.parse(await readFile(legacyOmoConfigPath, "utf-8"));
+      } catch {
+        // no existing config
+      }
     }
 
     // Merge: defaults first, then user overrides
@@ -200,7 +210,7 @@ async function writeOmoConfig() {
     }
 
     await writeFile(omoConfigPath, JSON.stringify(merged, null, 2) + "\n", "utf-8");
-    console.log("[" + PACKAGE_NAME + "] Synced oh-my-opencode config at " + omoConfigPath);
+    console.log("[" + PACKAGE_NAME + "] Synced oh-my-openagent config at " + omoConfigPath);
   } catch (e) {
     // Non-fatal: OMO config sync is optional
     console.warn("[" + PACKAGE_NAME + "] Could not sync OMO config: " + (e instanceof Error ? e.message : e));
@@ -411,13 +421,26 @@ async function main() {
   var omoInstalled = await checkOmoInstalled();
   if (omoInstalled) {
     var plugins = Array.isArray(config.plugin) ? config.plugin : [];
-    var hasOmo = plugins.some(function (entry) {
-      return typeof entry === "string" && (entry === "oh-my-opencode" || entry.startsWith("oh-my-opencode@"));
+    var hasOmoNew = plugins.some(function (entry) {
+      return typeof entry === "string" && (entry === "oh-my-openagent" || entry.startsWith("oh-my-openagent@"));
     });
-    if (!hasOmo) {
-      config.plugin = plugins.concat(["oh-my-opencode"]);
+    if (!hasOmoNew) {
+      // Replace legacy entry or add new entry
+      var hasOmoLegacy = plugins.some(function (entry) {
+        return typeof entry === "string" && (entry === "oh-my-opencode" || entry.startsWith("oh-my-opencode@"));
+      });
+      if (hasOmoLegacy) {
+        config.plugin = plugins.map(function (entry) {
+          if (typeof entry === "string" && (entry === "oh-my-opencode" || entry.startsWith("oh-my-opencode@"))) {
+            return "oh-my-openagent";
+          }
+          return entry;
+        });
+      } else {
+        config.plugin = plugins.concat(["oh-my-openagent"]);
+      }
       changed = true;
-      console.log("[" + PACKAGE_NAME + "] Added oh-my-opencode to plugin list");
+      console.log("[" + PACKAGE_NAME + "] Added oh-my-openagent to plugin list");
     }
   }
 

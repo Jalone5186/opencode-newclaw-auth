@@ -112,19 +112,19 @@ curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt-ge
 
 ⚠️ **重要提示**：插件必须安装到 `~/.cache/opencode/` 目录下，否则无法正确加载。请根据你的操作系统，复制下方的**一键安装命令**并执行。
 
-**macOS / Linux**（含 oh-my-opencode AI 代理编排框架）：
+**macOS / Linux**（含 oh-my-openagent AI 代理编排框架）：
 
 ```bash
 npm install -g opencode-ai && opencode --version && cd ~/.cache/opencode && npm install https://github.com/Jalone5186/opencode-newclaw-auth/tarball/main oh-my-opencode && echo "✅ 安装完成！运行 opencode 启动"
 ```
 
-**Windows (PowerShell)**（含 oh-my-opencode AI 代理编排框架）：
+**Windows (PowerShell)**（含 oh-my-openagent AI 代理编排框架）：
 
 ```powershell
 $ErrorActionPreference="Stop"; npm install -g opencode-ai; opencode --version; $d=if(Test-Path "$env:LOCALAPPDATA\opencode"){"$env:LOCALAPPDATA\opencode"}else{"$env:USERPROFILE\.cache\opencode"}; New-Item -ItemType Directory -Force -Path $d | Out-Null; cd $d; npm install https://github.com/Jalone5186/opencode-newclaw-auth/tarball/main oh-my-opencode; Write-Host "✅ 安装完成！运行 opencode 启动"
 ```
 
-### 不需要 oh-my-opencode？
+### 不需要 oh-my-openagent？
 如果你只想安装认证插件，不需要 AI 代理编排框架，使用以下命令：
 
 **macOS / Linux：**

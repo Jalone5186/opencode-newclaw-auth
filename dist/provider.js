@@ -7,7 +7,11 @@ var isClaude = (modelId) => modelId.startsWith("claude-");
 var isGemini = (modelId) => modelId.startsWith("gemini-");
 var isResponses = (modelId) => modelId.startsWith("gpt-") || modelId.startsWith("codex");
 var isDeepSeekOrGrok = (modelId) => modelId.startsWith("deepseek-") || modelId.startsWith("grok-");
-var normalizeModelId = (modelId) => String(modelId).trim();
+var normalizeModelId = (modelId) => {
+  const trimmed = String(modelId).trim();
+  const atIdx = trimmed.indexOf("@");
+  return atIdx === -1 ? trimmed : trimmed.slice(0, atIdx);
+};
 function createNewclaw(options = {}) {
   console.log(`[newclaw-provider] createNewclaw called: apiKey=${options.apiKey ? options.apiKey.slice(0, 8) + "****" : "none"}, baseURL=${options.baseURL}, hasFetch=${!!options.fetch}`);
   const openai = createOpenAI({

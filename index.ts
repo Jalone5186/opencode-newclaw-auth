@@ -36,7 +36,7 @@ import {
 import { transformClaudeRequest, transformClaudeResponse } from "./lib/request/claude-tools-transform"
 import { transformRequestBody } from "./lib/request/request-transformer"
 import { saveRawResponse, SAVE_RAW_RESPONSE_ENABLED } from "./lib/logger"
-import { detectFamily, resolveApiKeyForFamily, keyRegistry } from "./lib/models"
+import { detectFamily, resolveApiKeyForFamily, keyRegistry, parseCompositeModelId } from "./lib/models"
 import STANDARD_PROVIDER_CONFIG from "./lib/provider-config.json"
 import { syncOmoConfig } from "./lib/hooks/omo-config-sync"
 import { syncModelsFromApi } from "./lib/models/auto-sync"
@@ -365,15 +365,26 @@ export const NewclawAuthPlugin: Plugin = async (ctx: PluginInput) => {
            
            console.log(`[newclaw-auth] fetch interceptor called: model=${model}, isStreaming=${isStreaming}, url=${originalUrl}`)
            
-            // Priority: env var override > keyRegistry match > auth.json unified key
-            const modelId = model ? stripProviderPrefix(model) : ""
+            const rawModelId = model ? stripProviderPrefix(model) : ""
+            const { baseModelId: modelId, groupName: selectedGroup } = parseCompositeModelId(rawModelId)
             const family = detectFamily(modelId)
-            const allCandidateKeys = keyRegistry.selectKeysForModel(modelId, apiKey)
 
-            console.log(`[newclaw-auth] allCandidateKeys from registry: ${allCandidateKeys.map(k => k.slice(0, 8)).join(", ")}`)
+            if (selectedGroup && init?.body && typeof init.body === "string") {
+              try {
+                const bodyObj = JSON.parse(init.body as string)
+                if (typeof bodyObj.model === "string" && bodyObj.model.includes("@")) {
+                  bodyObj.model = bodyObj.model.replace(/@[^/]*$/, "")
+                  init = { ...init, body: JSON.stringify(bodyObj) }
+                }
+              } catch { /* keep original */ }
+            }
 
-            const isClaudeRequest = isModel(model, "claude-") || isClaudeUrl(originalUrl)
-            const isCodexRequest = !isClaudeRequest && isCodexModel(model)
+            const allCandidateKeys = keyRegistry.selectKeysWithGroupPriority(modelId, selectedGroup, apiKey)
+
+            console.log(`[newclaw-auth] model=${modelId}, selectedGroup=${selectedGroup}, candidateKeys=${allCandidateKeys.map(k => k.slice(0, 8)).join(", ")}`)
+
+            const isClaudeRequest = modelId.startsWith("claude-") || isClaudeUrl(originalUrl)
+            const isCodexRequest = !isClaudeRequest && isCodexModel(modelId)
 
            // Determine endpoint type for this request
            let endpointType = "openai"
@@ -553,15 +564,16 @@ export const NewclawAuthPlugin: Plugin = async (ctx: PluginInput) => {
     "chat.params": async (input, output) => {
       if (input.model.providerID !== PROVIDER_ID) return
 
-      if (isCodexModel(input.model.id)) {
+      const { baseModelId: chatModelId } = parseCompositeModelId(input.model.id ?? "")
+
+      if (isCodexModel(chatModelId)) {
         const next = { ...output.options }
         next.store = false
         output.options = next
         return
       }
 
-      // Claude models: remove thinking if budgetTokens >= maxTokens
-      if (!input.model.id?.startsWith("claude-")) return
+      if (!chatModelId.startsWith("claude-")) return
       const thinking = output.options?.thinking
       if (!thinking || typeof thinking !== "object") return
       const budgetTokens = (thinking as { budgetTokens?: unknown }).budgetTokens

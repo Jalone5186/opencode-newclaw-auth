@@ -70,7 +70,48 @@ opencode-newclaw-auth/
 
 ## 核心架构决策
 
-### 1. API Key 配置模式（核心特性）
+### 1. API Key 自动发现机制（核心特性）
+
+**用户无需手动配置 Key 与模型的对应关系，插件自动发现。**
+
+**工作流程：**
+
+1. **启动时自动发现**（`lib/models/auto-sync.ts`）
+   - 对每个 Key 调用 `GET https://newclaw.ai/v1/models`
+   - NewClaw 平台返回该 Key 支持的所有模型列表
+   - API 返回格式：
+     ```json
+     {
+       "data": [
+         {
+           "id": "deepseek-v3.1",
+           "object": "model",
+           "supported_endpoint_types": ["openai"],
+           "owned_by": "custom"
+         },
+         {
+           "id": "[REDACTED]",
+           "supported_endpoint_types": ["anthropic"],
+           "owned_by": "custom"
+         }
+       ]
+     }
+     ```
+
+2. **建立 Key → Models 映射**
+   - 每个 Key 的模型列表存储在 `KeyRegistry`
+   - 同时记录每个模型支持的端点类型（`supported_endpoint_types`）
+   - 例如：`sk-key1` 支持 `[deepseek-v3.1, grok-4, gemini-2.0]`
+
+3. **运行时查询**（用户调用模型时）
+   - 用户选择 `deepseek-v3.1` 模型
+   - 插件查询 `KeyRegistry.selectKeysForModel("deepseek-v3.1")`
+   - 返回支持该模型的所有 Key，按倍率升序排序
+   - 优先使用便宜的 Key（倍率低）
+
+4. **自动 Key 轮换**
+   - 如果第一个 Key 返回 401/403/429，自动切换到下一个 Key
+   - 所有 Key 都失败才报错
 
 **三层 Key 来源，运行时优先级从高到低：**
 
@@ -238,6 +279,87 @@ cd ${XDG_CACHE_HOME:-~/.cache}/opencode && npm install https://github.com/Jalone
 ---
 
 ## 已知问题修复历史
+
+### 2026-03-16: DeepSeek/Grok/Gemini 流式请求完全修复 (v0.5.0) — 最终解决
+
+**问题**: DeepSeek/Grok/Gemini 模型调用时，平台返回"非流"错误，后来返回 `role is not one of [system, assistant, user, tool, function]` 错误
+
+**根本原因分析**（三层问题）:
+
+1. **第一层**：URL 路由错误
+   - OpenAI SDK 的 `languageModel()` 方法生成 `/v1/responses` URL（非流式端点）
+   - 需要重写到 `/v1/chat/completions`（流式端点）
+   - 解决：`fetchWithUrlFailover()` 中的字符串替换 hack
+
+2. **第二层**：请求体格式错误
+   - `/v1/chat/completions` 流式接口需要 `messages` 字段，不是 `input`
+   - OpenCode 的 `input` 数组格式与 OpenAI `messages` 格式完全不同
+   - 直接赋值 `body.messages = body.input` 导致平台无法识别
+   - 解决：实现 `convertInputToMessages()` 函数正确转换格式
+
+3. **第三层**：请求头缺失
+   - 流式请求需要 `X-Forwarded-Host: localhost:5173` 头
+   - 平台用此头区分流式和非流式请求
+   - 解决：在 `createNewclawHeaders()` 中条件性添加此头
+
+**解决方案** (v0.5.0):
+
+1. **添加 `convertInputToMessages()` 函数**（`lib/request/request-transformer.ts`）
+   ```typescript
+   function convertInputToMessages(input: InputItem[]): any[] {
+     const messages: any[] = []
+     for (const item of input) {
+       if (item.type === "text") {
+         messages.push({ role: "user", content: item.text || "" })
+       } else if (item.type === "function_call_output") {
+         messages.push({ role: "tool", tool_use_id: item.call_id, content: item.output || "" })
+       }
+     }
+     return messages
+   }
+   ```
+
+2. **修改 `transformRequestBody()` 调用转换函数**
+   - 对非 Codex 模型（DeepSeek/Grok/Gemini）调用 `convertInputToMessages()`
+   - Codex 模型保留 `input` 字段（使用不同的端点）
+
+3. **Key 轮换优先级修复**（`lib/models/registry.ts`）
+   - `resolveApiKeyForFamily()` 优先使用 `candidateKey`（来自轮换）
+   - 环境变量只在没有候选 Key 时才使用
+   - 修复了环境变量覆盖导致 Key 轮换失效的问题
+
+**关键洞察**:
+
+- **OpenCode input 格式** vs **OpenAI messages 格式**：
+  - `input`: `[{ type: "text", text: "..." }, { type: "function_call_output", call_id: "...", output: "..." }]`
+  - `messages`: `[{ role: "user", content: "..." }, { role: "tool", tool_use_id: "...", content: "..." }]`
+  - 不能直接赋值，必须逐项转换
+
+- **流式请求的三个必要条件**：
+  1. URL 必须是 `/v1/chat/completions`（不是 `/v1/responses`）
+  2. 请求体必须有 `messages` 字段（不是 `input`）
+  3. 请求头必须有 `X-Forwarded-Host: localhost:5173`
+
+- **Key 轮换的正确优先级**：
+  - 候选 Key（来自轮换）> 环境变量 > 兜底 Key
+  - 环境变量不应该覆盖轮换机制
+
+**代码变更**:
+- `lib/request/request-transformer.ts`: +25 行（`convertInputToMessages()` 函数）
+- `lib/models/registry.ts`: +8 行（修复 `resolveApiKeyForFamily()` 优先级）
+- `index.ts`: +20 行（诊断日志）
+- 净增：+53 行
+
+**验证**:
+- ✅ 所有 19 个单元测试通过
+- ✅ 构建成功（64.17 KB）
+- ✅ DeepSeek 模型现在返回 HTTP 429（速率限制，不是格式错误）
+- ✅ 流式模式被正确识别
+- ✅ Key 轮换正常工作
+
+**提交**:
+- commit fafa7c7: 正确转换 OpenCode input 格式到 OpenAI messages 格式
+- commit 3eb8792: 修复 Key 轮换优先级
 
 ### 2026-03-15: X-Forwarded-Host 请求头修复 (v0.4.1)
 
@@ -410,7 +532,7 @@ cd ${XDG_CACHE_HOME:-~/.cache}/opencode && npm install https://github.com/Jalone
   - 修复 fallback fetch 不注入认证头导致 401 错误
   - 修复 isOmoInstalled 在旧 Node.js 下误判的问题
   - 添加 postinstall 对 .jsonc 配置文件的支持
-  - 添加 oh-my-opencode 可选集成（一键安装 + 自动配置同步）
+  - 添加 oh-my-openagent 可选集成（一键安装 + 自动配置同步）
   - 添加 INSTALL-WITH-OMO.md 安装文档
   - 添加 README 常见问题排查
 - **v0.1.0** (2026-03-06): 初始版本
@@ -418,3 +540,35 @@ cd ${XDG_CACHE_HOME:-~/.cache}/opencode && npm install https://github.com/Jalone
   - 支持 Claude Code、Codex 模型家族
   - 实现统一 Key + 按厂商独立 Key 双模式
   - TypeScript 零错误，构建通过
+
+---
+
+## oh-my-openagent 命名迁移记录（2026-04-23）
+
+### 背景
+
+GitHub 仓库从 `code-yeongyu/oh-my-opencode` 改名为 `code-yeongyu/oh-my-openagent`，但 npm 包名保持不变。
+
+### 关键结论
+
+| 项目 | 值 |
+|------|-----|
+| **GitHub 仓库** | `code-yeongyu/oh-my-openagent` |
+| **npm 包名** | `oh-my-opencode`（**不变**，安装命令无需修改） |
+| **当前版本** | `3.17.4` |
+| **CLI 命令** | `bunx oh-my-opencode`（不变）+ 新别名 `oh-my-openagent` |
+| **opencode.json plugin 入口** | 推荐 `"oh-my-openagent"`（写 `"oh-my-opencode"` 有 deprecation warning） |
+| **配置文件名** | 推荐 `oh-my-openagent.json[c]`（旧名 `oh-my-opencode.json[c]` 兼容支持） |
+| **遥测** | PostHog 默认开启，`OMO_DISABLE_POSTHOG=1` 可禁用 |
+
+### 本项目文件状态（已全部更新）
+
+- `scripts/install-opencode-newclaw.cjs`（466行）：`checkOmoInstalled()` 先检测 `oh-my-openagent` 再检测 `oh-my-opencode`；`writeOmoConfig()` 写入 `oh-my-openagent.json`；`main()` 自动把旧 `oh-my-opencode` plugin 入口替换为 `oh-my-openagent`
+- `INSTALL-WITH-OMO.md`：所有说明文字已更新为 `oh-my-openagent`，安装命令保持 `npm install ... oh-my-opencode`（正确，包名未变）
+- `assets/default-omo-config.json`：`$schema` 已指向 `oh-my-openagent` 仓库
+
+### 注意事项
+
+- 安装命令 `npm install oh-my-opencode` **不需要改**，包名未变
+- `opencode.json` 中写 `"oh-my-opencode"` 仍然有效，但会触发 warning，建议用户更新为 `"oh-my-openagent"`
+- 新版新增匿名遥测（PostHog），默认开启，如需禁用设置 `OMO_DISABLE_POSTHOG=1`

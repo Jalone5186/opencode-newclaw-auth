@@ -491,6 +491,20 @@ function detectFamily(modelId) {
   return "codex";
 }
 // lib/models/key-registry.ts
+var GROUP_SEPARATOR = "@";
+function parseCompositeModelId(compositeId) {
+  const idx = compositeId.indexOf(GROUP_SEPARATOR);
+  if (idx === -1)
+    return { baseModelId: compositeId, groupName: undefined };
+  return {
+    baseModelId: compositeId.slice(0, idx),
+    groupName: compositeId.slice(idx + 1)
+  };
+}
+function buildCompositeModelId(baseModelId, groupName) {
+  return `${baseModelId}${GROUP_SEPARATOR}${groupName}`;
+}
+
 class KeyRegistry {
   profiles = [];
   modelEndpointMaps = new Map;
@@ -513,6 +527,29 @@ class KeyRegistry {
     }
     candidates.sort((a, b) => a.ratio - b.ratio);
     const keys = candidates.map((c) => c.key);
+    if (!keys.includes(fallbackKey)) {
+      keys.push(fallbackKey);
+    }
+    return keys.length > 0 ? keys : [fallbackKey];
+  }
+  selectKeysWithGroupPriority(modelId, targetGroupName, fallbackKey) {
+    const candidates = [];
+    for (const profile of this.profiles) {
+      if (!profile.models.includes(modelId))
+        continue;
+      candidates.push({ key: profile.key, ratio: profile.groupRatio, groupName: profile.groupName });
+    }
+    let priorityKeys = [];
+    let restCandidates = candidates;
+    if (targetGroupName) {
+      const matched = candidates.filter((c) => c.groupName === targetGroupName);
+      priorityKeys = matched.map((c) => c.key);
+      const matchedSet = new Set(priorityKeys);
+      restCandidates = candidates.filter((c) => !matchedSet.has(c.key));
+    }
+    restCandidates.sort((a, b) => a.ratio - b.ratio);
+    const restKeys = restCandidates.map((c) => c.key);
+    const keys = [...priorityKeys, ...restKeys];
     if (!keys.includes(fallbackKey)) {
       keys.push(fallbackKey);
     }
@@ -541,6 +578,20 @@ class KeyRegistry {
       }
     }
     return result;
+  }
+  getAllModelGroupPairs() {
+    const seen = new Set;
+    const pairs = [];
+    for (const profile of this.profiles) {
+      for (const modelId of profile.models) {
+        const compositeKey = `${modelId}@${profile.groupName}`;
+        if (seen.has(compositeKey))
+          continue;
+        seen.add(compositeKey);
+        pairs.push({ modelId, profile });
+      }
+    }
+    return pairs;
   }
   getProfilesForModel(modelId) {
     return this.profiles.filter((p) => p.models.includes(modelId));
@@ -772,12 +823,12 @@ var provider_config_default = {
 };
 
 // lib/hooks/omo-config-sync/index.ts
-import { readFile, writeFile, access, mkdir } from "fs/promises";
+import { readFile, writeFile, access, mkdir, rename } from "fs/promises";
 import path from "path";
 import os from "os";
 // assets/default-omo-config.json
 var default_omo_config_default = {
-  $schema: "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/dev/assets/oh-my-opencode.schema.json",
+  $schema: "https://raw.githubusercontent.com/code-yeongyu/oh-my-openagent/dev/assets/oh-my-opencode.schema.json",
   agents: {
     sisyphus: {
       model: "newclaw/claude-opus-4-6",
@@ -883,7 +934,10 @@ var default_omo_config_default = {
 var homeDir = process.env.OPENCODE_TEST_HOME || os.homedir();
 var configRoot = process.env.XDG_CONFIG_HOME || path.join(homeDir, ".config");
 var configDir = path.join(configRoot, "opencode");
-var omoConfigPath = path.join(configDir, "oh-my-opencode.json");
+var omoConfigPath = path.join(configDir, "oh-my-openagent.json");
+var legacyOmoConfigPath = path.join(configDir, "oh-my-opencode.json");
+var OMO_PLUGIN_NAME = "oh-my-openagent";
+var OMO_LEGACY_PLUGIN_NAME = "oh-my-opencode";
 var fileExists = async (filePath) => {
   try {
     await access(filePath);
@@ -895,11 +949,11 @@ var fileExists = async (filePath) => {
 async function isOmoInstalled() {
   try {
     if (typeof import.meta.resolve === "function") {
-      import.meta.resolve("oh-my-opencode");
+      import.meta.resolve(OMO_LEGACY_PLUGIN_NAME);
       return true;
     }
   } catch {}
-  return fileExists(omoConfigPath);
+  return await fileExists(omoConfigPath) || await fileExists(legacyOmoConfigPath);
 }
 function mergeOmoConfig(existing, defaults) {
   const merged = { ...defaults };
@@ -930,6 +984,12 @@ async function syncOmoConfig() {
     return;
   }
   await mkdir(configDir, { recursive: true });
+  if (!await fileExists(omoConfigPath) && await fileExists(legacyOmoConfigPath)) {
+    try {
+      await rename(legacyOmoConfigPath, omoConfigPath);
+      console.log(`[${PLUGIN_NAME}] Migrated ${legacyOmoConfigPath} \u2192 ${omoConfigPath}`);
+    } catch {}
+  }
   const opencodeConfigPath = path.join(configDir, "opencode.json");
   const jsoncPath = path.join(configDir, "opencode.jsonc");
   const activeConfigPath = await fileExists(jsoncPath) ? jsoncPath : opencodeConfigPath;
@@ -941,12 +1001,14 @@ async function syncOmoConfig() {
     if (configText) {
       const config = JSON.parse(configText);
       const plugins = Array.isArray(config.plugin) ? config.plugin : [];
-      const hasOmo = plugins.some((e) => typeof e === "string" && (e === "oh-my-opencode" || e.startsWith("oh-my-opencode@")));
-      if (!hasOmo) {
-        config.plugin = [...plugins, "oh-my-opencode"];
+      const hasNew = plugins.some((e) => typeof e === "string" && (e === OMO_PLUGIN_NAME || e.startsWith(OMO_PLUGIN_NAME + "@")));
+      const hasLegacy = plugins.some((e) => typeof e === "string" && (e === OMO_LEGACY_PLUGIN_NAME || e.startsWith(OMO_LEGACY_PLUGIN_NAME + "@")));
+      if (!hasNew) {
+        const updatedPlugins = hasLegacy ? plugins.map((e) => typeof e === "string" && (e === OMO_LEGACY_PLUGIN_NAME || e.startsWith(OMO_LEGACY_PLUGIN_NAME + "@")) ? OMO_PLUGIN_NAME : e) : [...plugins, OMO_PLUGIN_NAME];
+        config.plugin = updatedPlugins;
         await writeFile(activeConfigPath, JSON.stringify(config, null, 2) + `
 `, "utf-8");
-        console.log(`[${PLUGIN_NAME}] Added oh-my-opencode to plugin list`);
+        console.log(`[${PLUGIN_NAME}] Updated plugin entry to ${OMO_PLUGIN_NAME} in plugin list`);
       }
     }
   } catch {}
@@ -968,7 +1030,7 @@ async function syncOmoConfig() {
   } catch {}
   if (mergedStr !== existingStr) {
     await writeFile(omoConfigPath, mergedStr, "utf-8");
-    console.log(`[${PLUGIN_NAME}] Synced oh-my-opencode config at ${omoConfigPath}`);
+    console.log(`[${PLUGIN_NAME}] Synced oh-my-openagent config at ${omoConfigPath}`);
   }
 }
 
@@ -1322,12 +1384,13 @@ function getModelDisplayName(modelId, pricingData) {
   return modelIdToDisplayName(modelId);
 }
 function buildEnrichedModelConfigs(pricingData) {
-  const allModels = keyRegistry.getAllModels();
+  const pairs = keyRegistry.getAllModelGroupPairs();
   const result = {};
-  for (const [modelId, bestProfile] of allModels) {
+  for (const { modelId, profile } of pairs) {
+    const compositeId = buildCompositeModelId(modelId, profile.groupName);
     const baseName = getModelDisplayName(modelId, pricingData);
-    const displayName = buildDisplayName(baseName, bestProfile.groupDisplayName, bestProfile.groupRatio);
-    result[modelId] = {
+    const displayName = buildDisplayName(baseName, profile.groupDisplayName, profile.groupRatio);
+    result[compositeId] = {
       name: displayName,
       limit: detectLimits(modelId),
       modalities: detectModalities(modelId)
@@ -1350,8 +1413,11 @@ async function updateConfigModels(newModels) {
   for (const [id, cfg] of Object.entries(newModels)) {
     mergedModels[id] = cfg;
   }
+  const compositeBaseIds = new Set(Object.keys(newModels).filter((id) => id.includes("@")).map((id) => id.split("@")[0]));
   for (const [id, existingConfig] of Object.entries(existingModels)) {
     if (typeof existingConfig === "object" && existingConfig !== null) {
+      if (!id.includes("@") && compositeBaseIds.has(id))
+        continue;
       const existing = existingConfig;
       if (mergedModels[id]) {
         if (existing.limit)
@@ -1557,7 +1623,6 @@ var parseRequestBody = (init) => {
   }
 };
 var stripProviderPrefix = (model) => model.includes("/") ? model.split("/").pop() : model;
-var isModel = (model, prefix) => Boolean(model && stripProviderPrefix(model).startsWith(prefix));
 var isCodexModel = (model) => Boolean(model && CODEX_MODEL_PREFIXES.some((prefix) => stripProviderPrefix(model).startsWith(prefix)));
 var isClaudeUrl = (url) => url.includes("/v1/messages");
 var saveResponseIfEnabled = async (response, provider, metadata) => {
@@ -1668,12 +1733,22 @@ var NewclawAuthPlugin = async (ctx) => {
           const originalUrl = extractRequestUrl(input);
           const { model, isStreaming } = parseRequestBody(init);
           console.log(`[newclaw-auth] fetch interceptor called: model=${model}, isStreaming=${isStreaming}, url=${originalUrl}`);
-          const modelId = model ? stripProviderPrefix(model) : "";
+          const rawModelId = model ? stripProviderPrefix(model) : "";
+          const { baseModelId: modelId, groupName: selectedGroup } = parseCompositeModelId(rawModelId);
           const family = detectFamily(modelId);
-          const allCandidateKeys = keyRegistry.selectKeysForModel(modelId, apiKey);
-          console.log(`[newclaw-auth] allCandidateKeys from registry: ${allCandidateKeys.map((k) => k.slice(0, 8)).join(", ")}`);
-          const isClaudeRequest = isModel(model, "claude-") || isClaudeUrl(originalUrl);
-          const isCodexRequest = !isClaudeRequest && isCodexModel(model);
+          if (selectedGroup && init?.body && typeof init.body === "string") {
+            try {
+              const bodyObj = JSON.parse(init.body);
+              if (typeof bodyObj.model === "string" && bodyObj.model.includes("@")) {
+                bodyObj.model = bodyObj.model.replace(/@[^/]*$/, "");
+                init = { ...init, body: JSON.stringify(bodyObj) };
+              }
+            } catch {}
+          }
+          const allCandidateKeys = keyRegistry.selectKeysWithGroupPriority(modelId, selectedGroup, apiKey);
+          console.log(`[newclaw-auth] model=${modelId}, selectedGroup=${selectedGroup}, candidateKeys=${allCandidateKeys.map((k) => k.slice(0, 8)).join(", ")}`);
+          const isClaudeRequest = modelId.startsWith("claude-") || isClaudeUrl(originalUrl);
+          const isCodexRequest = !isClaudeRequest && isCodexModel(modelId);
           let endpointType = "openai";
           if (isClaudeRequest)
             endpointType = "anthropic";
@@ -1819,13 +1894,14 @@ var NewclawAuthPlugin = async (ctx) => {
     "chat.params": async (input, output) => {
       if (input.model.providerID !== PROVIDER_ID)
         return;
-      if (isCodexModel(input.model.id)) {
+      const { baseModelId: chatModelId } = parseCompositeModelId(input.model.id ?? "");
+      if (isCodexModel(chatModelId)) {
         const next2 = { ...output.options };
         next2.store = false;
         output.options = next2;
         return;
       }
-      if (!input.model.id?.startsWith("claude-"))
+      if (!chatModelId.startsWith("claude-"))
         return;
       const thinking = output.options?.thinking;
       if (!thinking || typeof thinking !== "object")

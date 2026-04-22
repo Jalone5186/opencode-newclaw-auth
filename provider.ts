@@ -40,7 +40,11 @@ const isGemini = (modelId: string) => modelId.startsWith("gemini-")
 const isResponses = (modelId: string) => modelId.startsWith("gpt-") || modelId.startsWith("codex")
 const isDeepSeekOrGrok = (modelId: string) => modelId.startsWith("deepseek-") || modelId.startsWith("grok-")
 
-const normalizeModelId = (modelId: string) => String(modelId).trim()
+const normalizeModelId = (modelId: string) => {
+  const trimmed = String(modelId).trim()
+  const atIdx = trimmed.indexOf("@")
+  return atIdx === -1 ? trimmed : trimmed.slice(0, atIdx)
+}
 
 export function createNewclaw(options: NewclawProviderSettings = {}): NewclawProvider {
   console.log(`[newclaw-provider] createNewclaw called: apiKey=${options.apiKey ? options.apiKey.slice(0, 8) + "****" : "none"}, baseURL=${options.baseURL}, hasFetch=${!!options.fetch}`)
