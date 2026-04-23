@@ -159,24 +159,32 @@ $d = if(Test-Path "$env:LOCALAPPDATA\opencode"){"$env:LOCALAPPDATA\opencode"}els
 
 ## 配置账号
 
-安装时，postinstall 脚本会自动提示你输入 NewClaw 平台账号和密码（可直接按回车跳过，稍后再配置）。
+**安装过程中**，postinstall 脚本会自动提示你输入 NewClaw 平台账号和密码：
 
-如果安装时跳过了，或者需要重新配置，运行：
-
-```bash
-opencode auth login
+```
+[opencode-newclaw-auth] 🔐 NewClaw 平台账号配置
+NewClaw 用户名/邮箱 (回车跳过): your@email.com
+NewClaw 密码: ********
+[opencode-newclaw-auth] ✅ 账号已保存
 ```
 
-运行后会出现交互式菜单，请按以下步骤操作：
-1. `Select a provider`: 选择 `Other`
-2. `Enter provider name`: 输入 `newclaw`（必须全小写）
-3. `NewClaw 账号（用户名或邮箱）`: 输入你的平台用户名
-4. `NewClaw 密码`: 输入你的平台密码
+直接输入你在 [newclaw.ai](https://newclaw.ai) 注册的用户名和密码即可。
 
-插件会自动登录平台，发现所有已配置的令牌，并同步可用模型列表。凭证保存在插件目录的 `.newclaw-credentials` 文件中。
+**如果安装时跳过了账号配置**，或者需要重新配置，运行：
 
-> **没看到 Other 选项？**
-> 确保你已经完成了安装步骤中的 `npm install` 命令。如果你已经打开了 OpenCode，请按 `Ctrl + C` 退出后重新启动。
+**macOS / Linux：**
+```bash
+cd ~/.cache/opencode && node node_modules/opencode-newclaw-auth/scripts/install-opencode-newclaw.cjs
+```
+
+**Windows (PowerShell)：**
+```powershell
+$d=if(Test-Path "$env:LOCALAPPDATA\opencode"){"$env:LOCALAPPDATA\opencode"}else{"$env:USERPROFILE\.cache\opencode"}; cd $d; node node_modules/opencode-newclaw-auth/scripts/install-opencode-newclaw.cjs
+```
+
+运行后同样会提示输入用户名和密码。
+
+> **不要使用 `opencode auth login` 配置 NewClaw 账号**。该命令只支持输入 API Key，不支持用户名密码登录，与本插件的登录机制不兼容。
 
 ### 高级配置（可选）
 
